@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ทายอายุกัน! 🎂</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif'],display:['Syne','sans-serif']}}}}
+    </script>
+    <style>
+        body{background:#050505;color:#eee}
+        @keyframes fadeInUpBlur{0%{opacity:0;transform:translateY(20px);filter:blur(10px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
+        .anim-in{animation:fadeInUpBlur .7s cubic-bezier(.2,.8,.2,1) both}
+        .card-hover{transition:all .3s ease}
+        .card-hover:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.15);transform:translateY(-2px)}
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0a0a0a}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+        input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+        input[type=number]{-moz-appearance:textfield}
+        @keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes toastOut{from{transform:translateX(0);opacity:1}to{transform:translateX(120%);opacity:0}}
+        .toast-in{animation:toastIn .3s ease-out}.toast-out{animation:toastOut .3s ease-in forwards}
+        .grid-bg{background-image:linear-gradient(to right,rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.02) 1px,transparent 1px);background-size:50px 50px}
+        .tab-active{color:#f97316;border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.06)}
+        .tab-inactive{color:#737373;border-color:rgba(255,255,255,.08);background:transparent}
+        .tab-inactive:hover{color:#a3a3a3;border-color:rgba(255,255,255,.15)}
+        details summary::-webkit-details-marker{display:none}details summary{list-style:none}
+        .bar-range,.bar-avg{transition:all .5s cubic-bezier(.2,.8,.2,1)}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}.modal-overlay{animation:fadeIn .2s ease-out}
+        @keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}.modal-box{animation:modalIn .3s cubic-bezier(.2,.8,.2,1)}
+        @keyframes spin{to{transform:rotate(360deg)}}.spinner{animation:spin .8s linear infinite}
+        .online-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+        .online-on{background:#22c55e;box-shadow:0 0 6px #22c55e80}
+        .online-off{background:#737373}
+        .reveal-btn{background:linear-gradient(135deg,rgba(56,189,248,.08),rgba(56,189,248,.03));border:1px dashed rgba(56,189,248,.25);color:rgba(56,189,248,.7);transition:all .2s}
+        .reveal-btn:hover{background:linear-gradient(135deg,rgba(56,189,248,.15),rgba(56,189,248,.06));border-color:rgba(56,189,248,.4);color:#38bdf8}
+        .pin-input{letter-spacing:.6em}
+    </style>
+</head>
+<body class="font-sans min-h-screen grid-bg">
+
+<div id="toast-container" class="fixed top-16 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+<nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-[#050505]/80 border-b border-white/5">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-black font-bold text-xs font-display">G</div>
+            <span class="font-display font-semibold text-white text-sm tracking-tight hidden sm:inline">Age Guesser</span>
+            <span id="onlineDot" class="online-dot online-off ml-1" title="กำลังเชื่อมต่อ..."></span>
+        </div>
+        <div class="flex items-center gap-1">
+            <button onclick="openManageGate()" class="text-[11px] uppercase tracking-widest text-neutral-500 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 flex items-center gap-1">⚙️ <span class="hidden sm:inline">รายชื่อ</span></button>
+        </div>
+    </div>
+</nav>
+
+<section class="pt-20 pb-8 px-4 relative">
+    <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-orange-500/[.04] rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="relative z-10 text-center max-w-2xl mx-auto">
+        <h1 class="font-display text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tighter leading-[.95] mb-4 anim-in" style="animation-delay:.1s">ทายอายุ<span class="text-orange-500">กัน!</span></h1>
+        <p class="text-neutral-500 text-sm sm:text-base leading-relaxed mb-8 anim-in" style="animation-delay:.2s">เลือกชื่อตัวเอง ทายอายุเพื่อนๆ แล้วดูว่าใครจะโดนคิดว่าแก่ที่สุด</p>
+        <div class="anim-in" style="animation-delay:.35s">
+            <select id="playerSelect" onchange="onSelectMember(this.value)" style="background-color:#1a1a1a;color:#fff;font-size:14px;padding:12px 40px 12px 16px;border:1px solid rgba(255,255,255,.1);border-radius:12px;width:100%;max-width:320px;cursor:pointer;outline:none;margin:0 auto;display:block;">
+                <option value="">— เลือกชื่อของคุณ —</option>
+            </select>
+            <p class="text-neutral-600 text-[11px] mt-2">🔒 ครั้งแรกจะให้ตั้ง PIN 4 หลัก ครั้งต่อไปกรอก PIN เดิมเพื่อเข้าเป็นคุณ</p>
+        </div>
+        <div id="currentPlayerBadge" class="mt-5 hidden anim-in">
+            <span class="inline-flex items-center gap-2 text-sm text-neutral-300 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                เล่นเป็น: <strong id="currentPlayerName" class="text-orange-400"></strong>
+                <button onclick="logout()" class="ml-1 text-neutral-500 hover:text-red-400 transition-colors" title="ออกจากระบบ">&times;</button>
+            </span>
+        </div>
+    </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
+    <div class="grid grid-cols-4 gap-2 sm:gap-3 anim-in" style="animation-delay:.4s">
+        <div class="bg-white/[.02] border border-white/5 rounded-xl p-3 sm:p-4 text-center"><div class="text-xl sm:text-2xl font-display font-semibold text-white" id="statTotal">0</div><div class="text-[10px] sm:text-xs text-neutral-500 uppercase tracking-wider mt-0.5">สมาชิก</div></div>
+        <div class="bg-white/[.02] border border-white/5 rounded-xl p-3 sm:p-4 text-center"><div class="text-xl sm:text-2xl font-display font-semibold text-orange-400" id="statGuessed">0</div><div class="text-[10px] sm:text-xs text-neutral-500 uppercase tracking-wider mt-0.5">คุณทายแล้ว</div></div>
+        <div class="bg-white/[.02] border border-white/5 rounded-xl p-3 sm:p-4 text-center"><div class="text-xl sm:text-2xl font-display font-semibold text-sky-400" id="statRevealed">0</div><div class="text-[10px] sm:text-xs text-neutral-500 uppercase tracking-wider mt-0.5">เปิดดูแล้ว</div></div>
+        <div class="bg-white/[.02] border border-white/5 rounded-xl p-3 sm:p-4 text-center"><div class="text-xl sm:text-2xl font-display font-semibold text-emerald-400" id="statPlayers">0</div><div class="text-[10px] sm:text-xs text-neutral-500 uppercase tracking-wider mt-0.5">คนที่เล่น</div></div>
+    </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-4 sm:px-6 mb-6 anim-in" style="animation-delay:.45s">
+    <div class="flex gap-2 p-1 bg-white/[.02] rounded-xl border border-white/5 w-fit mx-auto">
+        <button onclick="switchTab('guess')" id="tab-guess" class="tab-active px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all">🎯 ทายอายุ</button>
+        <button onclick="switchTab('results')" id="tab-results" class="tab-inactive px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all">📊 ผลลัพธ์ <span id="refreshSpinner" class="hidden inline-block w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full spinner ml-1 align-middle"></span></button>
+    </div>
+</section>
+
+<section id="guessTab" class="max-w-6xl mx-auto px-4 sm:px-6 pb-10">
+    <div class="relative w-full sm:w-64 mb-5">
+        <input id="searchInput" type="text" placeholder="🔍 ค้นหาชื่อ..." oninput="handleSearch(this.value)" class="w-full bg-white/5 border border-white/10 rounded-lg pl-4 pr-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500/40 transition-all">
+    </div>
+    <div id="selfRevealCard" class="hidden mb-5"></div>
+    <div id="guessGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    <div id="guessEmpty" class="hidden text-center py-20"><p class="text-neutral-500 text-sm">ไม่พบสมาชิก</p></div>
+</section>
+
+<section id="resultsTab" class="max-w-4xl mx-auto px-4 sm:px-6 pb-10 hidden">
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <p class="text-neutral-500 text-xs" id="resultsHint"></p>
+        <select id="sortSelect" onchange="renderResults()" style="background:#1a1a1a;color:#d4d4d4;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 32px 8px 12px;font-size:12px;outline:none;cursor:pointer;">
+            <option value="avg-desc">อายุเฉลี่ย มาก→น้อย</option>
+            <option value="avg-asc">อายุเฉลี่ย น้อย→มาก</option>
+            <option value="diverge">เสียงแตกมากสุด</option>
+            <option value="popular">ถูกทายมากที่สุด</option>
+        </select>
+    </div>
+    <div id="resultsList" class="space-y-3"></div>
+    <div id="resultsEmpty" class="hidden text-center py-20 border border-white/5 rounded-2xl bg-white/[.01]"><p class="text-neutral-500 text-sm mb-1">ยังไม่มีข้อมูล</p><p class="text-neutral-600 text-xs">ให้สมาชิกทายอายุกันก่อน</p></div>
+    <div id="funStats" class="hidden mt-10"></div>
+</section>
+
+<!-- Auth Modal: ใช้ทั้งตั้ง PIN / กรอก PIN / รหัสผ่านแอดมิน -->
+<div id="authModal" class="fixed inset-0 z-[300] hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAuthModal()"></div>
+    <div class="modal-box absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-sm bg-[#0e0e0e] border border-white/10 rounded-2xl p-6">
+        <h2 id="authTitle" class="font-display font-semibold text-white text-base mb-1">เข้าสู่ระบบ</h2>
+        <p id="authSubtitle" class="text-neutral-500 text-xs mb-4"></p>
+        <input id="authPinInput" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" class="pin-input w-full text-center text-2xl bg-white/5 border border-white/10 rounded-xl py-3 text-white focus:outline-none focus:border-orange-500/50 mb-2" onkeydown="if(event.key==='Enter')submitAuth()">
+        <p id="authError" class="text-red-400 text-xs text-center mb-3 hidden"></p>
+        <div class="flex gap-2">
+            <button onclick="closeAuthModal()" class="flex-1 py-2.5 rounded-xl border border-white/10 text-neutral-400 text-sm hover:bg-white/5 transition-colors">ยกเลิก</button>
+            <button onclick="submitAuth()" class="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-black font-medium text-sm rounded-xl transition-all">ยืนยัน</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Modal -->
+<div id="manageModal" class="fixed inset-0 z-[200] hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeManageModal()"></div>
+    <div class="modal-box absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-2xl max-h-[85vh] bg-[#0e0e0e] border border-white/10 rounded-2xl flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0"><h2 class="font-display font-semibold text-white text-base">จัดการรายชื่อ</h2><button onclick="closeManageModal()" class="text-neutral-500 hover:text-white transition-colors text-xl">&times;</button></div>
+        <div class="px-5 py-3 border-b border-white/5 flex-shrink-0"><p class="text-[11px] text-neutral-500">แต่ละบรรทัด = 1 คน &nbsp; รูปแบบ: <code class="text-neutral-400 bg-white/5 px-1 rounded">id | ชื่อที่แสดง | @username | ชื่อเล่น</code><br>⚠️ ห้ามแก้คอลัมน์ <b>id</b> ของคนที่มีอยู่แล้ว (จะทำให้ PIN และคะแนนเดิมของเขาหลุดการเชื่อมโยง) — คนใหม่ให้เว้น id ว่างไว้ ระบบจะสร้างให้เอง</p></div>
+        <div class="flex-1 overflow-y-auto px-5 py-3"><textarea id="memberTextarea" style="background:#111;color:#eee;border:1px solid rgba(255,255,255,.1);border-radius:12px;width:100%;min-height:350px;padding:16px;font-size:13px;line-height:1.8;font-family:'Inter',monospace;outline:none;resize:vertical;" spellcheck="false"></textarea></div>
+        <div class="border-t border-white/5 px-5 py-4 flex items-center justify-between flex-shrink-0"><span id="memberCount" class="text-[11px] text-neutral-600"></span><div class="flex gap-2"><button onclick="closeManageModal()" class="px-5 py-2.5 rounded-xl border border-white/10 text-neutral-400 text-sm hover:bg-white/5 transition-colors">ยกเลิก</button><button onclick="saveMembersFromTextarea()" class="px-6 py-2.5 bg-orange-500 hover:bg-orange-400 text-black font-medium text-sm rounded-xl transition-all">💾 บันทึก</button></div></div>
+    </div>
+</div>
+
+<footer class="border-t border-white/5 py-8 text-center"><p class="text-neutral-700 text-xs">Guild Age Guesser 🎉</p></footer>
+
+<script>
+/*
+===========================================================================
+🔧 วาง URL จาก Google Apps Script ตรงนี้ (แทนที่ PASTE_YOUR_URL_HERE)
+   ดูวิธี deploy ในคอมเมนต์ต้นไฟล์ Code.gs
+===========================================================================
+*/
+var API_URL = 'https://script.google.com/macros/s/AKfycbyoptCBmIFY_nffyJi1cr10-ttVZdpK5WMW7qnD72VQfEgSo13SjzOwcUEMW58TiXY_/exec';
+var IS_CONFIGURED = API_URL && API_URL.indexOf('PASTE_') === -1 && API_URL.indexOf('http') === 0;
+
+var GRADIENTS=['from-orange-500 to-pink-500','from-purple-500 to-blue-500','from-emerald-500 to-teal-500','from-amber-500 to-orange-500','from-pink-500 to-rose-500','from-blue-500 to-cyan-500','from-red-500 to-orange-500','from-indigo-500 to-violet-500','from-teal-500 to-green-500','from-fuchsia-500 to-pink-500'];
+
+// ===== state จาก server เสมอ (ไม่มี local fallback อีกต่อไป เพราะต้องพึ่งการยืนยันตัวตนฝั่ง server) =====
+var STATE = { members: [], claimed: {}, guesses: {}, realAges: {}, revealed: [], you: null };
+var currentTab='guess', searchQuery='', revealModes={};
+var authMode=null, authPendingMemberId=null;
+
+// ===== token storage (แค่ token สุ่ม ไม่ใช่ข้อมูลระบุตัวตนจริง) =====
+function getToken(){ try{return localStorage.getItem('guild_token')||''}catch(e){return ''} }
+function setToken(t){ try{localStorage.setItem('guild_token',t)}catch(e){} }
+function clearToken(){ try{localStorage.removeItem('guild_token')}catch(e){} }
+function getAdminToken(){ try{return localStorage.getItem('guild_admin_token')||''}catch(e){return ''} }
+function setAdminToken(t){ try{localStorage.setItem('guild_admin_token',t)}catch(e){} }
+
+// ===== API =====
+function updateOnlineDot(status){
+    var d=document.getElementById('onlineDot');
+    if(status===true){d.className='online-dot online-on ml-1';d.title='ออนไลน์';}
+    else if(status===false){d.className='online-dot online-off ml-1';d.title='เชื่อมต่อไม่ได้';}
+    else{d.className='online-dot online-off ml-1';d.title='กำลังเชื่อมต่อ...';}
+}
+
+function apiFetchState(){
+    if(!IS_CONFIGURED) return Promise.resolve(false);
+    var url = API_URL + '?token=' + encodeURIComponent(getToken());
+    return fetch(url).then(function(r){return r.json()}).then(function(data){
+        STATE.members=data.members||[];
+        STATE.claimed=data.claimed||{};
+        STATE.guesses=data.guesses||{};
+        STATE.realAges=data.realAges||{};
+        STATE.revealed=data.revealed||[];
+        STATE.you=data.you||null;
+        if(getToken() && !STATE.you) clearToken(); // token หมดอายุ/ไม่ถูกต้อง
+        updateOnlineDot(true);
+        return true;
+    }).catch(function(){updateOnlineDot(false);return false;});
+}
+
+function apiPost(action,data){
+    if(!IS_CONFIGURED) return Promise.resolve({ok:false,error:'not_configured'});
+    var body=Object.assign({action:action},data||{});
+    if(['guess','removeGuess','reveal','removeReveal','markSeen'].indexOf(action)!==-1) body.token=getToken();
+    if(action==='saveMembers') body.token=getAdminToken();
+    // ใช้ text/plain แทน application/json เพื่อเลี่ยงปัญหา CORS preflight กับ Apps Script Web App
+    return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
+        .then(function(r){return r.json()}).catch(function(){return {ok:false,error:'network'};});
+}
+
+function findMember(id){for(var i=0;i<STATE.members.length;i++){if(STATE.members[i].id===id)return STATE.members[i];}return null;}
+
+// ===== AUTH (เลือกชื่อ → ตั้ง/กรอก PIN) =====
+function onSelectMember(id){
+    if(!id || id===STATE.you) return;
+    authPendingMemberId=id;
+    authMode = STATE.claimed[id] ? 'login' : 'register';
+    openAuthModal();
+}
+
+function openManageGate(){
+    if(getAdminToken()){ openManageModal(); return; }
+    authMode='admin'; authPendingMemberId=null;
+    openAuthModal();
+}
+
+function openAuthModal(){
+    var m=findMember(authPendingMemberId);
+    var titleEl=document.getElementById('authTitle'), subEl=document.getElementById('authSubtitle'), inputEl=document.getElementById('authPinInput');
+    if(authMode==='admin'){
+        titleEl.textContent='รหัสผ่านแอดมิน';
+        subEl.textContent='สำหรับจัดการรายชื่อสมาชิก';
+        inputEl.type='password'; inputEl.maxLength=64; inputEl.classList.remove('pin-input');
+    }else{
+        titleEl.textContent = authMode==='register' ? 'ตั้ง PIN ของคุณ (4 หลัก)' : 'กรอก PIN';
+        subEl.textContent = 'เล่นเป็น: ' + (m?m.nickname+' ('+m.displayName+')':'');
+        inputEl.type='tel'; inputEl.maxLength=4; inputEl.classList.add('pin-input');
+    }
+    inputEl.value='';
+    document.getElementById('authError').classList.add('hidden');
+    document.getElementById('authModal').classList.remove('hidden');
+    setTimeout(function(){inputEl.focus();},50);
+}
+
+function closeAuthModal(){
+    document.getElementById('authModal').classList.add('hidden');
+    authMode=null; authPendingMemberId=null;
+    var sel=document.getElementById('playerSelect'); if(sel) sel.value=STATE.you||'';
+}
+
+function showAuthError(msg){var el=document.getElementById('authError');el.textContent=msg;el.classList.remove('hidden');}
+
+function submitAuth(){
+    var val=document.getElementById('authPinInput').value.trim();
+
+    if(authMode==='admin'){
+        if(!val){showAuthError('กรอกรหัสผ่าน');return;}
+        apiPost('adminAuth',{password:val}).then(function(res){
+            if(res.ok){ setAdminToken(res.token); document.getElementById('authModal').classList.add('hidden'); authMode=null; openManageModal(); }
+            else showAuthError(res.error==='wrong_password'?'รหัสผ่านไม่ถูกต้อง':(res.error==='admin_not_set'?'ยังไม่ได้ตั้งรหัสผ่านแอดมินใน Apps Script':'เกิดข้อผิดพลาด'));
+        });
+        return;
+    }
+
+    if(!/^\d{4}$/.test(val)){showAuthError('PIN ต้องเป็นตัวเลข 4 หลัก');return;}
+    var action = authMode==='register' ? 'register' : 'login';
+    apiPost(action,{member:authPendingMemberId,pin:val}).then(function(res){
+        if(res.ok){
+            setToken(res.token);
+            document.getElementById('authModal').classList.add('hidden');
+            authMode=null;
+            apiFetchState().then(function(){afterLogin();});
+        }else{
+            var msgs={
+                wrong_pin:'PIN ไม่ถูกต้อง',
+                locked:'กรอกผิดหลายครั้ง รออีก '+(res.minutes||5)+' นาที',
+                already_registered:'ชื่อนี้ถูกจองแล้ว ลองกรอก PIN เดิมเพื่อเข้าสู่ระบบ',
+                not_registered:'ยังไม่เคยตั้ง PIN สำหรับชื่อนี้'
+            };
+            showAuthError(msgs[res.error]||'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        }
+    });
+}
+
+function afterLogin(){
+    rebuildDropdown();
+    updatePlayerBadge(); renderGuessCards(); updateStats();
+    if(currentTab==='results') renderResults();
+    showToast('เข้าสู่ระบบสำเร็จ','success');
+}
+
+function logout(){
+    clearToken(); STATE.you=null;
+    var sel=document.getElementById('playerSelect'); if(sel) sel.value='';
+    // ดึงข้อมูลใหม่แบบไม่มี token เพื่อล้างอายุจริงที่เคยมีสิทธิ์เห็นออกจากหน่วยความจำหน้าเว็บ
+    apiFetchState().then(function(){
+        updatePlayerBadge(); renderGuessCards(); updateStats();
+        if(currentTab==='results') renderResults();
+    });
+}
+
+function updatePlayerBadge(){
+    var b=document.getElementById('currentPlayerBadge'),n=document.getElementById('currentPlayerName'),m=findMember(STATE.you);
+    if(m){b.classList.remove('hidden');n.textContent=m.nickname+' ('+m.displayName+')';}else{b.classList.add('hidden');}
+}
+
+// ===== TABS =====
+function switchTab(t){
+    currentTab=t;
+    document.getElementById('tab-guess').className=(t==='guess'?'tab-active':'tab-inactive')+' px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all';
+    document.getElementById('tab-results').className=(t==='results'?'tab-active':'tab-inactive')+' px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all';
+    document.getElementById('guessTab').classList.toggle('hidden',t!=='guess');
+    document.getElementById('resultsTab').classList.toggle('hidden',t!=='results');
+    if(t==='results'){document.getElementById('refreshSpinner').classList.remove('hidden');apiFetchState().then(function(){renderResults();updateStats();document.getElementById('refreshSpinner').classList.add('hidden');});}
+}
+function handleSearch(q){searchQuery=q.trim().toLowerCase();renderGuessCards();}
+
+// ===== SELF REVEAL =====
+function renderSelfReveal(){
+    var el=document.getElementById('selfRevealCard');
+    if(!STATE.you){el.classList.add('hidden');el.innerHTML='';return;}
+    var m=findMember(STATE.you);if(!m){el.classList.add('hidden');return;}
+    var ra=STATE.realAges[STATE.you]!==undefined?STATE.realAges[STATE.you]:null;
+    var isR=revealModes['self']||false;
+    var grad=GRADIENTS[0];
+    var h='<div class="bg-emerald-500/[.03] border border-emerald-500/10 rounded-2xl p-4 anim-in"><div class="flex items-center gap-3.5 mb-3"><div class="w-11 h-11 rounded-xl bg-gradient-to-br '+grad+' flex items-center justify-center text-white font-display font-bold text-base shadow-lg flex-shrink-0">'+m.nickname.charAt(0)+'</div>';
+    h+='<div class="min-w-0 flex-1"><h3 class="font-display font-semibold text-white text-sm">'+m.displayName+'</h3><p class="text-emerald-400/60 text-xs">'+m.nickname+' (คุณ)</p></div></div>';
+    if(ra!==null)h+='<div class="flex items-center justify-between"><span class="text-sm text-emerald-400">🎂 อายุจริง: <strong class="font-display text-lg">'+ra+'</strong> ปี</span><button onclick="removeRealAge()" class="text-neutral-600 hover:text-red-400 transition-colors text-xs">ซ่อน</button></div>';
+    else if(isR)h+='<div class="flex items-center gap-2"><input id="reveal-self" type="number" min="1" max="100" placeholder="อายุจริงของคุณ" class="flex-1 h-9 text-center bg-white/5 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-emerald-500/30" onkeydown="if(event.key===\'Enter\')confirmSelfReveal()"><button onclick="confirmSelfReveal()" class="px-4 h-9 bg-emerald-500 hover:bg-emerald-400 text-black font-medium text-xs rounded-lg transition-all">ยืนยัน</button><button onclick="cancelSelfReveal()" class="w-9 h-9 flex items-center justify-center text-neutral-600 hover:text-neutral-400 transition-colors">✕</button></div>';
+    else h+='<button onclick="startSelfReveal()" class="w-full py-2.5 rounded-xl border border-dashed border-emerald-500/20 text-emerald-400/60 hover:text-emerald-400 hover:border-emerald-500/40 text-xs transition-all">🔒 เปิดเผยอายุจริงของคุณ</button>';
+    h+='</div>';el.innerHTML=h;el.classList.remove('hidden');
+}
+function startSelfReveal(){revealModes['self']=true;renderSelfReveal();setTimeout(function(){var e=document.getElementById('reveal-self');if(e)e.focus();},50);}
+function cancelSelfReveal(){revealModes['self']=false;renderSelfReveal();}
+function confirmSelfReveal(){
+    var el=document.getElementById('reveal-self');var age=parseInt(el.value);
+    if(!age||age<1||age>100){showToast('อายุต้อง 1-100','warning');return;}
+    apiPost('reveal',{age:age}).then(function(res){
+        if(res.ok){
+            apiFetchState().then(function(){
+                revealModes['self']=false;renderSelfReveal();renderGuessCards();updateStats();
+                showToast('เปิดเผยอายุ: '+age+' ปี','success');
+            });
+        }else showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง','error');
+    });
+}
+function removeRealAge(){
+    apiPost('removeReveal',{}).then(function(res){
+        if(res.ok) apiFetchState().then(function(){updateStats();renderSelfReveal();renderGuessCards();if(currentTab==='results')renderResults();});
+    });
+}
+
+// ===== GUESS CARDS =====
+function renderGuessCards(){
+    var grid=document.getElementById('guessGrid'),noRes=document.getElementById('guessEmpty');
+    renderSelfReveal();
+    var filtered=[];
+    for(var i=0;i<STATE.members.length;i++){var m=STATE.members[i];if(m.id===STATE.you)continue;if(searchQuery){var hay=(m.displayName+m.nickname+(m.username||'')).toLowerCase();if(hay.indexOf(searchQuery)===-1)continue;}filtered.push(m);}
+    if(!STATE.you){grid.innerHTML='<div class="col-span-full text-center py-16"><div class="text-4xl mb-3">👇</div><p class="text-neutral-600 text-sm">เลือกชื่อตัวเองด้านบนก่อน</p></div>';noRes.classList.add('hidden');return;}
+    if(filtered.length===0&&searchQuery){grid.innerHTML='';noRes.classList.remove('hidden');return;}
+    noRes.classList.add('hidden');
+    var html='';
+    for(var i=0;i<filtered.length;i++){
+        var m=filtered[i],grad=GRADIENTS[i%GRADIENTS.length];
+        var myGuess=(STATE.guesses[STATE.you])?STATE.guesses[STATE.you][m.id]:null;
+        if(myGuess===undefined||myGuess===null)myGuess=null;
+        var canSee=STATE.realAges[m.id]!==undefined;
+        var realAge=canSee?STATE.realAges[m.id]:null;
+        var hasRealButHidden=(!canSee)&&STATE.revealed.indexOf(m.id)!==-1;
+
+        html+='<div class="relative bg-white/[.02] border border-white/[.06] rounded-2xl p-4 card-hover anim-in" style="animation-delay:'+Math.min(i*0.03,0.5)+'s" id="card-'+m.id+'">';
+        html+='<div class="flex items-start gap-3.5 mb-4"><div class="w-11 h-11 rounded-xl bg-gradient-to-br '+grad+' flex items-center justify-center text-white font-display font-bold text-base shadow-lg flex-shrink-0">'+m.nickname.charAt(0)+'</div><div class="min-w-0 flex-1"><h3 class="font-display font-semibold text-white text-sm truncate">'+m.displayName+'</h3>'+(m.username?'<p class="text-neutral-600 text-[11px] truncate mt-0.5">'+m.username+'</p>':'')+'<p class="text-orange-400/60 text-xs mt-0.5">'+m.nickname+'</p></div></div>';
+        html+='<div class="mb-3">';
+        if(myGuess!==null){html+='<div class="flex items-center justify-center gap-2.5 bg-orange-500/5 border border-orange-500/15 rounded-xl py-2.5"><span class="text-neutral-500 text-xs">ทาย:</span><span class="text-orange-400 font-display font-semibold text-xl">'+myGuess+'</span><span class="text-neutral-600 text-xs">ปี</span><button onclick="removeGuess(\''+m.id+'\')" class="ml-1 text-neutral-700 hover:text-red-400 transition-colors text-lg leading-none">&times;</button></div>';}
+        else{html+='<div class="flex items-center justify-center gap-2"><button onclick="adjustAge(\''+m.id+'\',-1)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-neutral-400 transition-all active:scale-90">−</button><input id="input-'+m.id+'" type="number" min="1" max="100" value="25" class="w-16 h-8 text-center bg-white/5 border border-white/10 rounded-lg text-white font-display font-semibold text-base focus:outline-none focus:border-orange-500/50 transition-all"><button onclick="adjustAge(\''+m.id+'\',1)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-neutral-400 transition-all active:scale-90">+</button><button onclick="submitGuess(\''+m.id+'\')" class="ml-1 px-3.5 h-8 bg-orange-500 hover:bg-orange-400 text-black font-medium text-xs rounded-lg transition-all active:scale-95">ทาย!</button></div>';}
+        html+='</div>';
+
+        if(realAge!==null&&myGuess!==null){var diff=Math.abs(myGuess-realAge);var cmp=diff===0?'<span class="text-green-400">🎉 ตรงป๊อบ!</span>':diff<=1?'<span class="text-emerald-400">⭐ ใกล้มาก!</span>':diff<=2?'<span class="text-yellow-400">👍 ใกล้เลย</span>':'<span class="text-neutral-500">ต่าง '+diff+' ปี</span>';html+='<div class="p-2 rounded-lg bg-white/[.02] border border-white/5 text-center text-xs"><span class="text-sky-400/60 text-[10px]">จริง: '+realAge+' ปี</span> · '+cmp+'</div>';}
+        else if(hasRealButHidden){html+='<button onclick="revealRealAgeToMe(\''+m.id+'\')" class="w-full py-2.5 rounded-xl reveal-btn text-xs text-center transition-all">👁 มีอายุจริงอยู่ — กดเพื่อดู</button>';}
+        else if(realAge!==null){html+='<div class="text-center text-[10px] text-sky-400/40">จริง: '+realAge+' ปี</div>';}
+
+        html+=buildOthers(m.id);html+='</div>';
+    }
+    grid.innerHTML=html;
+}
+
+function buildOthers(mid){
+    var others=[];for(var p in STATE.guesses){if(p===STATE.you)continue;if(STATE.guesses[p][mid]!==undefined){var pm=findMember(p);others.push({n:pm?pm.nickname:p,g:STATE.guesses[p][mid]});}}
+    if(!others.length)return'';
+    var h='<details class="mt-2.5"><summary class="text-[10px] uppercase tracking-wider text-neutral-700 cursor-pointer hover:text-neutral-400 transition-colors flex items-center gap-1">👥 คนอื่นทาย ('+others.length+')</summary><div class="mt-1.5 space-y-1 pl-0.5">';
+    for(var i=0;i<others.length;i++)h+='<div class="flex items-center justify-between text-[11px] py-0.5 px-2 rounded bg-white/[.015]"><span class="text-neutral-500">'+others[i].n+'</span><span class="text-neutral-400 font-mono">'+others[i].g+'</span></div>';
+    return h+'</div></details>';
+}
+
+function adjustAge(id,d){var el=document.getElementById('input-'+id);if(el)el.value=Math.max(1,Math.min(100,(parseInt(el.value)||25)+d));}
+function submitGuess(id){
+    if(!STATE.you)return;var el=document.getElementById('input-'+id);var age=parseInt(el.value);
+    if(!age||age<1||age>100){showToast('อายุต้อง 1-100','warning');return;}
+    apiPost('guess',{member:id,age:age}).then(function(res){
+        if(res.ok){apiFetchState().then(function(){updateStats();renderGuessCards();var m=findMember(id);showToast('ทาย '+(m?m.nickname:id)+' ไว้ '+age+' ปี','info');});}
+        else showToast('บันทึกไม่สำเร็จ ลองใหม่','error');
+    });
+}
+function removeGuess(id){
+    apiPost('removeGuess',{member:id}).then(function(res){
+        if(res.ok)apiFetchState().then(function(){updateStats();renderGuessCards();});
+    });
+}
+function revealRealAgeToMe(id){
+    apiPost('markSeen',{member:id}).then(function(res){
+        if(res.ok)apiFetchState().then(function(){renderGuessCards();updateStats();if(currentTab==='results')renderResults();});
+    });
+}
+
+function updateStats(){
+    document.getElementById('statTotal').textContent=STATE.members.length;
+    var mc=(STATE.guesses[STATE.you])?Object.keys(STATE.guesses[STATE.you]).length:0;
+    document.getElementById('statGuessed').textContent=mc+'/'+Math.max(STATE.members.length-1,0);
+    document.getElementById('statRevealed').textContent=Object.keys(STATE.realAges).length;
+    var pc=0;for(var p in STATE.guesses)pc++;
+    document.getElementById('statPlayers').textContent=pc;
+}
+
+// ===== RESULTS =====
+function stdDev(a){if(a.length<=1)return 0;var avg=0;for(var i=0;i<a.length;i++)avg+=a[i];avg/=a.length;var s=0;for(var i=0;i<a.length;i++)s+=(a[i]-avg)*(a[i]-avg);return Math.sqrt(s/a.length);}
+
+function renderResults(){
+    var members=STATE.members,list=document.getElementById('resultsList'),empty=document.getElementById('resultsEmpty'),hint=document.getElementById('resultsHint'),funEl=document.getElementById('funStats');
+    var sort=document.getElementById('sortSelect').value;var data=[];
+    for(var mi=0;mi<members.length;mi++){
+        var m=members[mi],vals=[],pp={};
+        for(var player in STATE.guesses){if(STATE.guesses[player][m.id]!==undefined){vals.push(STATE.guesses[player][m.id]);var pm=findMember(player);pp[player]={guess:STATE.guesses[player][m.id],nickname:pm?pm.nickname:player};}}
+        if(!vals.length)continue;
+        var avg=0;for(var i=0;i<vals.length;i++)avg+=vals[i];avg/=vals.length;
+        var mn=vals[0],mx=vals[0];for(var i=1;i<vals.length;i++){if(vals[i]<mn)mn=vals[i];if(vals[i]>mx)mx=vals[i];}
+        var ra=STATE.realAges[m.id]!==undefined?STATE.realAges[m.id]:null;
+        var hasHidden=(ra===null)&&STATE.revealed.indexOf(m.id)!==-1;
+        data.push({member:m,vals:vals,avg:avg,sd:stdDev(vals),min:mn,max:mx,count:vals.length,perPlayer:pp,realAge:ra,hasHidden:hasHidden});
+    }
+    var pc=0;for(var p in STATE.guesses)pc++;
+    hint.textContent=pc+' คนทายแล้ว'+(pc===1?' — ยิ่งหลายคนทาย ยิ่งเห็นภาพชัดเจน!':'');
+    if(!data.length){list.innerHTML='';empty.classList.remove('hidden');funEl.classList.add('hidden');return;}
+    empty.classList.add('hidden');
+    if(sort==='avg-desc')data.sort(function(a,b){return b.avg-a.avg});
+    else if(sort==='avg-asc')data.sort(function(a,b){return a.avg-b.avg});
+    else if(sort==='diverge')data.sort(function(a,b){return b.sd-a.sd});
+    else if(sort==='popular')data.sort(function(a,b){return b.count-a.count});
+    var gMin=data[0].min,gMax=data[0].max;for(var i=1;i<data.length;i++){if(data[i].min<gMin)gMin=data[i].min;if(data[i].max>gMax)gMax=data[i].max;}gMin-=2;gMax+=2;var gR=Math.max(gMax-gMin,1);
+    function pct(v){return((v-gMin)/gR*100).toFixed(1);}
+    function fmt(a){return a.avg%1===0?a.avg:a.avg.toFixed(1);}
+    var html='';
+    for(var i=0;i<data.length;i++){
+        var d=data[i],m=d.member,mIdx=0;for(var k=0;k<members.length;k++){if(members[k].id===m.id){mIdx=k;break;}}
+        var grad=GRADIENTS[mIdx%GRADIENTS.length];
+        var cc=d.sd<1.5?'emerald':d.sd<3?'amber':'red';
+        var cl=d.count===1?'รอคนอื่น':d.sd<1.5?'🎯 เห็นตรงกัน':d.sd<3?'🤔 ค่อนข้างเห็นตรงกัน':'💥 เสียงแตก';
+        var barC=d.sd<1.5?'bg-emerald-500/25':d.sd<3?'bg-amber-500/25':'bg-red-500/25';
+        var dotC=d.sd<1.5?'bg-emerald-400':d.sd<3?'bg-amber-400':'bg-red-400';
+        var lP=pct(d.min),wP=Math.max(parseFloat(pct(d.max))-parseFloat(pct(d.min)),2),aP=pct(d.avg),avgS=fmt(d);
+        html+='<div class="bg-white/[.02] border border-white/[.06] rounded-2xl p-5 anim-in card-hover" style="animation-delay:'+Math.min(i*0.04,0.5)+'s">';
+        html+='<div class="flex items-center gap-3.5 mb-4"><div class="w-10 h-10 rounded-xl bg-gradient-to-br '+grad+' flex items-center justify-center text-white font-display font-bold text-sm flex-shrink-0">'+m.nickname.charAt(0)+'</div><div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><h3 class="font-display font-semibold text-white text-sm truncate">'+m.displayName+'</h3><span class="text-neutral-600 text-xs">('+m.nickname+')</span></div>'+(m.username?'<p class="text-neutral-600 text-[11px] truncate">'+m.username+'</p>':'')+'</div><div class="text-right flex-shrink-0"><div class="font-display font-bold text-xl text-white">'+avgS+'</div><div class="text-[10px] text-neutral-600">ปี (เฉลี่ย)</div></div></div>';
+        html+='<div class="relative h-7 mb-1"><div class="absolute inset-x-0 top-2 bottom-2 bg-white/[.04] rounded-full"></div><div class="bar-range absolute top-2 bottom-2 '+barC+' rounded-full" style="left:'+lP+'%;width:'+wP+'%;"></div><div class="bar-avg absolute top-0.5 w-1.5 h-6 '+dotC+' rounded-full shadow-lg" style="left:calc('+aP+'% - 3px);"></div>';
+        if(d.realAge!==null){var rp=pct(d.realAge);html+='<div class="absolute top-0.5 w-1.5 h-6 bg-sky-400 rounded-full shadow-lg shadow-sky-500/30" style="left:calc('+rp+'% - 3px);"></div><div class="absolute -top-4 text-[10px] text-sky-400 font-mono font-semibold" style="left:'+rp+'%;transform:translateX(-50%);">'+d.realAge+'</div>';}
+        html+='<div class="absolute -bottom-3.5 text-[10px] text-neutral-400 font-mono" style="left:'+aP+'%;transform:translateX(-50%);">'+avgS+'</div></div>';
+        html+='<div class="flex justify-between text-[9px] text-neutral-700 mt-4 mb-3 px-0.5"><span>'+gMin+'</span><span>'+Math.round((gMin+gMax)/2)+'</span><span>'+gMax+'</span></div>';
+        html+='<div class="flex items-center justify-between flex-wrap gap-2 text-[11px]"><span class="text-'+cc+'-400/80 bg-'+cc+'-500/5 border border-'+cc+'-500/10 px-2 py-0.5 rounded-md">'+cl+(d.count>1?' (±'+d.sd.toFixed(1)+')':'')+'</span><span class="text-neutral-600">'+d.count+' คนทาย</span>';
+        if(d.realAge!==null)html+='<span class="text-sky-400/80 bg-sky-500/5 border border-sky-500/10 px-2 py-0.5 rounded-md">จริง: '+d.realAge+' ปี</span>';
+        else if(d.hasHidden)html+='<button onclick="revealRealAgeToMe(\''+m.id+'\')" class="reveal-btn px-2 py-0.5 rounded-md text-[11px]">👁 เปิดดูอายุจริง</button>';
+        html+='</div>';
+        if(d.count>1){html+='<details class="mt-3"><summary class="text-[10px] uppercase tracking-wider text-neutral-700 cursor-pointer hover:text-neutral-400 transition-colors flex items-center gap-1">📋 ดูรายละเอียด</summary><div class="mt-2 flex flex-wrap gap-1.5">';for(var pid in d.perPlayer){var pd=d.perPlayer[pid];var ds='';if(d.realAge){var dv=pd.guess-d.realAge;ds='<span class="text-neutral-600 text-[10px]">('+(dv>0?'+':'')+dv+')</span>';}html+='<span class="text-[11px] bg-white/[.03] border border-white/5 rounded-lg px-2.5 py-1 flex items-center gap-1.5"><span class="text-neutral-500">'+pd.nickname+'</span><span class="text-neutral-300 font-mono font-medium">'+pd.guess+'</span>'+ds+'</span>';}html+='</div></details>';}
+        html+='</div>';
+    }
+    list.innerHTML=html;renderFunStats(data);
+}
+
+function renderFunStats(data){
+    var el=document.getElementById('funStats');if(data.length<2){el.classList.add('hidden');return;}el.classList.remove('hidden');
+    var sorted=data.slice().sort(function(a,b){return b.avg-a.avg}),oldest=sorted[0],youngest=sorted[sorted.length-1];
+    var multi=[];for(var i=0;i<data.length;i++){if(data[i].count>=2)multi.push(data[i]);}
+    var consensus=multi.length?multi.slice().sort(function(a,b){return a.sd-b.sd})[0]:null;
+    var diverge=multi.length?multi.slice().sort(function(a,b){return b.sd-a.sd})[0]:null;
+    var popular=data.slice().sort(function(a,b){return b.count-a.count})[0];
+    var avgAll=0;for(var i=0;i<data.length;i++)avgAll+=data[i].avg;avgAll=(avgAll/data.length).toFixed(1);
+    function f(a){return a.avg%1===0?a.avg:a.avg.toFixed(1);}
+    var h='<h3 class="font-display text-xl font-semibold tracking-tight text-center mb-5">สรุปสนุก 🍿</h3><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">';
+    h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">👴</div><div class="text-white font-display font-semibold text-sm">'+oldest.member.nickname+'</div><div class="text-lg font-display font-bold text-amber-400">'+f(oldest)+'</div><div class="text-neutral-600 text-[10px]">โดนทายว่าแก่ที่สุด</div></div>';
+    h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">👶</div><div class="text-white font-display font-semibold text-sm">'+youngest.member.nickname+'</div><div class="text-lg font-display font-bold text-cyan-400">'+f(youngest)+'</div><div class="text-neutral-600 text-[10px]">โดนทายว่าน้อยที่สุด</div></div>';
+    h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center col-span-2 sm:col-span-1"><div class="text-2xl mb-1">📊</div><div class="text-white font-display font-semibold text-sm">อายุเฉลี่ยกิล</div><div class="text-lg font-display font-bold text-violet-400">'+avgAll+'</div><div class="text-neutral-600 text-[10px]">จากการทายทั้งหมด</div></div>';
+    if(consensus)h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">🎯</div><div class="text-white font-display font-semibold text-sm">'+consensus.member.nickname+'</div><div class="text-xs text-emerald-400 mt-1">±'+consensus.sd.toFixed(1)+'</div><div class="text-neutral-600 text-[10px]">เห็นตรงกันมากที่สุด</div></div>';
+    if(diverge)h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">💥</div><div class="text-white font-display font-semibold text-sm">'+diverge.member.nickname+'</div><div class="text-xs text-red-400 mt-1">±'+diverge.sd.toFixed(1)+'</div><div class="text-neutral-600 text-[10px]">เสียงแตกมากที่สุด</div></div>';
+    h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">🏆</div><div class="text-white font-display font-semibold text-sm">'+popular.member.nickname+'</div><div class="text-xs text-orange-400 mt-1">'+popular.count+' คน</div><div class="text-neutral-600 text-[10px]">ถูกทายมากที่สุด</div></div></div>';
+    el.innerHTML=h;
+}
+
+// ===== MANAGE (admin เท่านั้น) =====
+function openManageModal(){
+    document.getElementById('manageModal').classList.remove('hidden');
+    var lines=[];for(var i=0;i<STATE.members.length;i++){var m=STATE.members[i];lines.push(m.id+'|'+m.displayName+'|'+(m.username||'')+'|'+m.nickname);}
+    document.getElementById('memberTextarea').value=lines.join('\n');updateMemberCount();
+    document.getElementById('memberTextarea').oninput=updateMemberCount;
+}
+function closeManageModal(){document.getElementById('manageModal').classList.add('hidden');}
+function updateMemberCount(){var txt=document.getElementById('memberTextarea').value,lines=txt.split('\n'),c=0;for(var i=0;i<lines.length;i++){var l=lines[i].trim();if(l&&l.charAt(0)!=='#')c++;}document.getElementById('memberCount').textContent=c+' คน';}
+
+function saveMembersFromTextarea(){
+    var txt=document.getElementById('memberTextarea').value,lines=txt.split('\n'),nl=[];
+    for(var i=0;i<lines.length;i++){
+        var line=lines[i].trim();if(!line||line.charAt(0)==='#')continue;
+        var p=line.split('|');
+        var id=(p[0]||'').trim(),dn=(p[1]||'').trim(),un=(p[2]||'').trim(),nn=(p[3]||'').trim();
+        if(!dn||!nn)continue;
+        nl.push({id:id,displayName:dn,username:un,nickname:nn});
+    }
+    if(!nl.length){showToast('ต้องมีอย่างน้อย 1 คน','warning');return;}
+    apiPost('saveMembers',{members:nl}).then(function(res){
+        if(res.ok){
+            apiFetchState().then(function(){rebuildDropdown();renderGuessCards();updateStats();closeManageModal();showToast('บันทึก '+res.count+' คนแล้ว','success');});
+        }else showToast('บันทึกไม่สำเร็จ: '+(res.error||'unauthorized'),'error');
+    });
+}
+
+function rebuildDropdown(){
+    var sel=document.getElementById('playerSelect');if(!sel)return;
+    var cv=STATE.you,h='<option value="">— เลือกชื่อของคุณ —</option>';
+    for(var i=0;i<STATE.members.length;i++){
+        var m=STATE.members[i],s=(m.id===cv)?' selected':'';
+        var tag=STATE.claimed[m.id]?'🔒 ':'';
+        h+='<option value="'+m.id+'"'+s+'>'+tag+m.displayName+' ('+m.nickname+')</option>';
+    }
+    sel.innerHTML=h;
+}
+
+// ===== TOAST =====
+function showToast(msg,type){type=type||'info';var c=document.getElementById('toast-container'),t=document.createElement('div');var cls={success:'border-emerald-500/30 bg-emerald-900/60 text-emerald-300',warning:'border-amber-500/30 bg-amber-900/60 text-amber-300',info:'border-orange-500/30 bg-orange-900/60 text-orange-300',error:'border-red-500/30 bg-red-900/60 text-red-300'};var icons={success:'✓',warning:'⚠',info:'ℹ',error:'✕'};t.className='toast-in pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl border '+(cls[type]||cls.info)+' text-sm backdrop-blur-md shadow-lg max-w-xs';t.innerHTML='<span>'+(icons[type]||'ℹ')+'</span><span>'+msg+'</span>';c.appendChild(t);setTimeout(function(){t.classList.replace('toast-in','toast-out');setTimeout(function(){t.remove();},350);},2200);}
+
+// ===== INIT =====
+function init(){
+    if(!IS_CONFIGURED){ showToast('ยังไม่ได้ตั้งค่า API_URL ในไฟล์นี้','error'); updateOnlineDot(false); return; }
+    apiFetchState().then(function(){
+        rebuildDropdown(); updatePlayerBadge(); updateStats(); renderGuessCards();
+    });
+}
+init();
+</script>
+</body>
+</html>
