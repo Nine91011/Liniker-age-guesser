@@ -36,6 +36,9 @@
         .reveal-btn{background:linear-gradient(135deg,rgba(56,189,248,.08),rgba(56,189,248,.03));border:1px dashed rgba(56,189,248,.25);color:rgba(56,189,248,.7);transition:all .2s}
         .reveal-btn:hover{background:linear-gradient(135deg,rgba(56,189,248,.15),rgba(56,189,248,.06));border-color:rgba(56,189,248,.4);color:#38bdf8}
         .pin-input{letter-spacing:.6em}
+        .chip-active{color:#f97316;border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.08)}
+        .chip-inactive{color:#737373;border-color:rgba(255,255,255,.08);background:transparent}
+        .chip-inactive:hover{color:#a3a3a3;border-color:rgba(255,255,255,.18)}
     </style>
 </head>
 <body class="font-sans min-h-screen grid-bg">
@@ -94,8 +97,15 @@
 </section>
 
 <section id="guessTab" class="max-w-6xl mx-auto px-4 sm:px-6 pb-10">
-    <div class="relative w-full sm:w-64 mb-5">
-        <input id="searchInput" type="text" placeholder="🔍 ค้นหาชื่อ..." oninput="handleSearch(this.value)" class="w-full bg-white/5 border border-white/10 rounded-lg pl-4 pr-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500/40 transition-all">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+        <div class="relative w-full sm:w-64 flex-shrink-0">
+            <input id="searchInput" type="text" placeholder="🔍 ค้นหาชื่อ..." oninput="handleSearch(this.value)" class="w-full bg-white/5 border border-white/10 rounded-lg pl-4 pr-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500/40 transition-all">
+        </div>
+        <div class="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <button onclick="setGuessFilter('all')" id="gf-all" class="chip-active flex-shrink-0 px-3.5 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap">ทั้งหมด <span id="gfc-all" class="opacity-60"></span></button>
+            <button onclick="setGuessFilter('todo')" id="gf-todo" class="chip-inactive flex-shrink-0 px-3.5 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap">ยังไม่ทาย <span id="gfc-todo" class="opacity-60"></span></button>
+            <button onclick="setGuessFilter('done')" id="gf-done" class="chip-inactive flex-shrink-0 px-3.5 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap">ทายแล้ว <span id="gfc-done" class="opacity-60"></span></button>
+        </div>
     </div>
     <div id="selfRevealCard" class="hidden mb-5"></div>
     <div id="guessGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
@@ -103,6 +113,7 @@
 </section>
 
 <section id="resultsTab" class="max-w-4xl mx-auto px-4 sm:px-6 pb-10 hidden">
+    <div id="funStats" class="hidden mb-8"></div>
     <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
         <p class="text-neutral-500 text-xs" id="resultsHint"></p>
         <select id="sortSelect" onchange="renderResults()" style="background:#1a1a1a;color:#d4d4d4;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 32px 8px 12px;font-size:12px;outline:none;cursor:pointer;">
@@ -114,7 +125,6 @@
     </div>
     <div id="resultsList" class="space-y-3"></div>
     <div id="resultsEmpty" class="hidden text-center py-20 border border-white/5 rounded-2xl bg-white/[.01]"><p class="text-neutral-500 text-sm mb-1">ยังไม่มีข้อมูล</p><p class="text-neutral-600 text-xs">ให้สมาชิกทายอายุกันก่อน</p></div>
-    <div id="funStats" class="hidden mt-10"></div>
 </section>
 
 <section id="ticketsTab" class="max-w-3xl mx-auto px-4 sm:px-6 pb-10 hidden">
@@ -379,6 +389,34 @@ function switchTab(t){
 }
 function handleSearch(q){searchQuery=q.trim().toLowerCase();renderGuessCards();}
 
+// ===== ตัวกรองในแท็บทายอายุ: all / todo / done =====
+var guessFilter='all';
+function setGuessFilter(f){guessFilter=f;renderGuessCards();}
+
+function myGuessOf(id){
+    if(!STATE.you||!STATE.guesses[STATE.you])return null;
+    var v=STATE.guesses[STATE.you][id];
+    return (v===undefined||v===null)?null:v;
+}
+
+function updateFilterChips(){
+    var all=0,done=0;
+    for(var i=0;i<STATE.members.length;i++){
+        var m=STATE.members[i];
+        if(m.id===STATE.you)continue;
+        all++;
+        if(myGuessOf(m.id)!==null)done++;
+    }
+    var c={all:all,todo:all-done,done:done};
+    var keys=['all','todo','done'];
+    for(var k=0;k<keys.length;k++){
+        var key=keys[k];
+        var btn=document.getElementById('gf-'+key), cnt=document.getElementById('gfc-'+key);
+        if(cnt)cnt.textContent=c[key];
+        if(btn)btn.className=(guessFilter===key?'chip-active':'chip-inactive')+' flex-shrink-0 px-3.5 py-2 rounded-lg text-xs font-medium border transition-all whitespace-nowrap';
+    }
+}
+
 // ===== SELF REVEAL =====
 function renderSelfReveal(){
     var el=document.getElementById('selfRevealCard');
@@ -489,9 +527,26 @@ function renderGuessCards(){
     var grid=document.getElementById('guessGrid'),noRes=document.getElementById('guessEmpty');
     renderSelfReveal();
     var filtered=[];
-    for(var i=0;i<STATE.members.length;i++){var m=STATE.members[i];if(m.id===STATE.you)continue;if(searchQuery){var hay=(m.displayName+m.nickname+(m.username||'')).toLowerCase();if(hay.indexOf(searchQuery)===-1)continue;}filtered.push(m);}
+    for(var i=0;i<STATE.members.length;i++){
+        var m=STATE.members[i];
+        if(m.id===STATE.you)continue;
+        if(searchQuery){var hay=(m.displayName+m.nickname+(m.username||'')).toLowerCase();if(hay.indexOf(searchQuery)===-1)continue;}
+        var g=myGuessOf(m.id);
+        if(guessFilter==='todo'&&g!==null)continue;
+        if(guessFilter==='done'&&g===null)continue;
+        filtered.push(m);
+    }
+    updateFilterChips();
     if(!STATE.you){grid.innerHTML='<div class="col-span-full text-center py-16"><div class="text-4xl mb-3">👇</div><p class="text-neutral-600 text-sm">เลือกชื่อตัวเองด้านบนก่อน</p></div>';noRes.classList.add('hidden');return;}
-    if(filtered.length===0&&searchQuery){grid.innerHTML='';noRes.classList.remove('hidden');return;}
+    if(filtered.length===0){
+        var msg='ไม่พบสมาชิก';
+        if(!searchQuery&&guessFilter==='todo')msg='🎉 ทายครบทุกคนแล้ว!';
+        else if(!searchQuery&&guessFilter==='done')msg='ยังไม่ได้ทายใครเลย';
+        grid.innerHTML='';
+        noRes.innerHTML='<p class="text-neutral-500 text-sm">'+msg+'</p>';
+        noRes.classList.remove('hidden');
+        return;
+    }
     noRes.classList.add('hidden');
     var html='';
     for(var i=0;i<filtered.length;i++){
@@ -651,7 +706,7 @@ function renderFunStats(data){
     var popular=data.slice().sort(function(a,b){return b.count-a.count})[0];
     var avgAll=0;for(var i=0;i<data.length;i++)avgAll+=data[i].avg;avgAll=(avgAll/data.length).toFixed(1);
     function f(a){return a.avg%1===0?a.avg:a.avg.toFixed(1);}
-    var h='<h3 class="font-display text-xl font-semibold tracking-tight text-center mb-5">สรุปสนุก 🍿</h3><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">';
+    var h='<h3 class="font-display text-xl font-semibold tracking-tight text-center mb-4">สรุปสนุก 🍿</h3><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">';
     h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">👴</div><div class="text-white font-display font-semibold text-sm">'+oldest.member.nickname+'</div><div class="text-lg font-display font-bold text-amber-400">'+f(oldest)+'</div><div class="text-neutral-600 text-[10px]">โดนทายว่าแก่ที่สุด</div></div>';
     h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">👶</div><div class="text-white font-display font-semibold text-sm">'+youngest.member.nickname+'</div><div class="text-lg font-display font-bold text-cyan-400">'+f(youngest)+'</div><div class="text-neutral-600 text-[10px]">โดนทายว่าน้อยที่สุด</div></div>';
     h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center col-span-2 sm:col-span-1"><div class="text-2xl mb-1">📊</div><div class="text-white font-display font-semibold text-sm">อายุเฉลี่ยกิล</div><div class="text-lg font-display font-bold text-violet-400">'+avgAll+'</div><div class="text-neutral-600 text-[10px]">จากการทายทั้งหมด</div></div>';
