@@ -162,11 +162,19 @@ var currentTab='guess', searchQuery='', revealModes={};
 var authMode=null, authPendingMemberId=null;
 
 // ===== token storage (แค่ token สุ่ม ไม่ใช่ข้อมูลระบุตัวตนจริง) =====
-function getToken(){ try{return localStorage.getItem('guild_token')||''}catch(e){return ''} }
-function setToken(t){ try{localStorage.setItem('guild_token',t)}catch(e){} }
+// token ที่ใช้ได้ต้องเป็นข้อความ hex ยาวเท่านั้น
+// การเช็กนี้ป้องกันค่าขยะอย่างข้อความ "undefined" ที่อาจถูกเก็บไว้จากเวอร์ชันเก่า
+// ซึ่งจะทำให้ระบบเข้าใจผิดว่าล็อกอินอยู่แล้ว และข้ามหน้ากรอกรหัสไปเลย
+function isValidToken(t){ return typeof t==='string' && /^[0-9a-f]{20,}$/.test(t); }
+function readToken(k){ try{var v=localStorage.getItem(k);return isValidToken(v)?v:'';}catch(e){return ''} }
+function writeToken(k,t){ if(!isValidToken(t))return false; try{localStorage.setItem(k,t)}catch(e){} return true; }
+
+function getToken(){ return readToken('guild_token'); }
+function setToken(t){ return writeToken('guild_token',t); }
 function clearToken(){ try{localStorage.removeItem('guild_token')}catch(e){} }
-function getAdminToken(){ try{return localStorage.getItem('guild_admin_token')||''}catch(e){return ''} }
-function setAdminToken(t){ try{localStorage.setItem('guild_admin_token',t)}catch(e){} }
+function getAdminToken(){ return readToken('guild_admin_token'); }
+function setAdminToken(t){ return writeToken('guild_admin_token',t); }
+function clearAdminToken(){ try{localStorage.removeItem('guild_admin_token')}catch(e){} }
 
 // ===== API =====
 function updateOnlineDot(status){
@@ -250,7 +258,8 @@ function submitAuth(){
     if(authMode==='admin'){
         if(!val){showAuthError('กรอกรหัสผ่าน');return;}
         apiPost('adminAuth',{password:val}).then(function(res){
-            if(res.ok){ setAdminToken(res.token); document.getElementById('authModal').classList.add('hidden'); authMode=null; openManageModal(); }
+            if(res.ok && setAdminToken(res.token)){ document.getElementById('authModal').classList.add('hidden'); authMode=null; openManageModal(); }
+            else if(res.ok) showAuthError('เซิร์ฟเวอร์ไม่ได้ส่ง token กลับมา — Apps Script อาจยังเป็นเวอร์ชันเก่า ให้ redeploy ก่อน');
             else showAuthError(res.error==='wrong_password'?'รหัสผ่านไม่ถูกต้อง':(res.error==='admin_not_set'?'ยังไม่ได้ตั้งรหัสผ่านแอดมินใน Apps Script':'เกิดข้อผิดพลาด'));
         });
         return;
@@ -259,11 +268,12 @@ function submitAuth(){
     if(!/^\d{4}$/.test(val)){showAuthError('PIN ต้องเป็นตัวเลข 4 หลัก');return;}
     var action = authMode==='register' ? 'register' : 'login';
     apiPost(action,{member:authPendingMemberId,pin:val}).then(function(res){
-        if(res.ok){
-            setToken(res.token);
+        if(res.ok && setToken(res.token)){
             document.getElementById('authModal').classList.add('hidden');
             authMode=null;
             apiFetchState().then(function(){afterLogin();});
+        }else if(res.ok){
+            showAuthError('เซิร์ฟเวอร์ไม่ได้ส่ง token กลับมา — Apps Script อาจยังเป็นเวอร์ชันเก่า ให้ redeploy ก่อน');
         }else{
             var msgs={
                 wrong_pin:'PIN ไม่ถูกต้อง',
@@ -509,7 +519,12 @@ function saveMembersFromTextarea(){
     apiPost('saveMembers',{members:nl}).then(function(res){
         if(res.ok){
             apiFetchState().then(function(){rebuildDropdown();renderGuessCards();updateStats();closeManageModal();showToast('บันทึก '+res.count+' คนแล้ว','success');});
-        }else showToast('บันทึกไม่สำเร็จ: '+(res.error||'unauthorized'),'error');
+        }else if(res.error==='unauthorized'){
+            // token แอดมินหมดอายุหรือใช้ไม่ได้ — ล้างทิ้งแล้วถามรหัสผ่านใหม่
+            clearAdminToken(); closeManageModal();
+            showToast('เซสชันแอดมินหมดอายุ กรุณาใส่รหัสผ่านอีกครั้ง','warning');
+            openManageGate();
+        }else showToast('บันทึกไม่สำเร็จ: '+(res.error||'unknown'),'error');
     });
 }
 
