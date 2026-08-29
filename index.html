@@ -37,6 +37,26 @@
         .reveal-btn:hover{background:linear-gradient(135deg,rgba(56,189,248,.15),rgba(56,189,248,.06));border-color:rgba(56,189,248,.4);color:#38bdf8}
         .pin-input{letter-spacing:.6em}
         .chip-active{color:#f97316;border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.08)}
+        /* --- popup รูปประกาศ --- */
+        #imgPopup .popup-img{
+            display:block;
+            max-width:100%;
+            max-height:100%;
+            width:auto;height:auto;
+            object-fit:contain;
+            border-radius:14px;
+            box-shadow:0 20px 60px rgba(0,0,0,.7);
+        }
+        .popup-nav{
+            width:38px;height:38px;border-radius:50%;
+            background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.15);
+            color:#fff;font-size:18px;line-height:1;
+            display:flex;align-items:center;justify-content:center;
+            transition:all .2s;backdrop-filter:blur(4px);
+        }
+        .popup-nav:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.35)}
+        .popup-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);transition:all .25s}
+        .popup-dot.on{background:#f97316;width:20px;border-radius:4px}
         .chip-inactive{color:#737373;border-color:rgba(255,255,255,.08);background:transparent}
         .chip-inactive:hover{color:#a3a3a3;border-color:rgba(255,255,255,.18)}
     </style>
@@ -53,6 +73,7 @@
             <span id="onlineDot" class="online-dot online-off ml-1" title="กำลังเชื่อมต่อ..."></span>
         </div>
         <div class="flex items-center gap-1">
+            <button onclick="openPopup(0)" class="text-[11px] uppercase tracking-widest text-neutral-500 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 flex items-center gap-1">📢 <span class="hidden sm:inline">กติกา</span></button>
             <button onclick="openManageGate()" class="text-[11px] uppercase tracking-widest text-neutral-500 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 flex items-center gap-1">⚙️ <span class="hidden sm:inline">รายชื่อ</span></button>
         </div>
     </div>
@@ -139,6 +160,28 @@
         <button onclick="openDrawGate()" class="px-5 py-2.5 rounded-xl border border-dashed border-white/10 text-neutral-600 hover:text-amber-400 hover:border-amber-500/30 text-xs transition-all">🔑 จับรางวัล (แอดมิน)</button>
     </div>
 </section>
+
+<!-- Image Popup -->
+<div id="imgPopup" class="fixed inset-0 z-[400] hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/85 backdrop-blur-sm" onclick="closePopup()"></div>
+    <div class="absolute inset-0 flex flex-col items-center justify-center p-3 sm:p-6 pointer-events-none">
+
+        <div class="relative pointer-events-auto flex items-center justify-center" style="max-width:min(96vw,560px);max-height:calc(100vh - 130px);">
+            <div id="popupSpinner" class="absolute w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full spinner"></div>
+            <img id="popupImg" class="popup-img modal-box" alt="" onload="document.getElementById('popupSpinner').classList.add('hidden')">
+        </div>
+
+        <div class="pointer-events-auto mt-3 flex items-center gap-4">
+            <button onclick="popupPrev()" id="popupPrevBtn" class="popup-nav">&#8249;</button>
+            <div id="popupDots" class="flex items-center gap-1.5"></div>
+            <button onclick="popupNext()" id="popupNextBtn" class="popup-nav">&#8250;</button>
+        </div>
+
+        <button onclick="closePopup()" class="pointer-events-auto mt-3 px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-sm transition-all">ปิด</button>
+    </div>
+
+    <button onclick="closePopup()" class="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 border border-white/15 text-white text-xl leading-none hover:bg-white/20 transition-all">&times;</button>
+</div>
 
 <!-- Auth Modal: ใช้ทั้งตั้ง PIN / กรอก PIN / รหัสผ่านแอดมิน -->
 <div id="authModal" class="fixed inset-0 z-[300] hidden">
@@ -858,15 +901,101 @@ function rebuildDropdown(){
     sel.innerHTML=h;
 }
 
+// ===== IMAGE POPUP =====
+// รูปอยู่ในโฟลเดอร์ img/ ข้างๆ index.html บน GitHub
+// ใช้ .webp เป็นหลัก ถ้าเบราว์เซอร์เก่าไม่รองรับจะสลับไป .jpg อัตโนมัติ
+var POPUP_IMAGES=[
+    {webp:'img/event.webp', jpg:'img/event.jpg', alt:'ประกาศกิจกรรมและรางวัล'},
+    {webp:'img/howto.webp', jpg:'img/howto.jpg', alt:'วิธีเล่น'}
+];
+// เปลี่ยนเลขนี้เมื่อเปลี่ยนรูป เพื่อให้ popup เด้งใหม่กับทุกคนอีกรอบ
+var POPUP_VERSION='1';
+
+var popupIndex=0;
+
+function openPopup(i){
+    if(!POPUP_IMAGES.length)return;
+    popupIndex=(typeof i==='number')?i:0;
+    document.getElementById('imgPopup').classList.remove('hidden');
+    document.body.style.overflow='hidden';
+    showPopupImage();
+    preloadPopupImages();
+}
+
+function closePopup(){
+    document.getElementById('imgPopup').classList.add('hidden');
+    document.body.style.overflow='';
+    try{localStorage.setItem('guild_popup_seen',POPUP_VERSION)}catch(e){}
+}
+
+function showPopupImage(){
+    var item=POPUP_IMAGES[popupIndex];
+    var img=document.getElementById('popupImg');
+    var sp=document.getElementById('popupSpinner');
+    sp.classList.remove('hidden');
+    img.onerror=function(){ img.onerror=null; img.src=item.jpg; }; // เผื่อ webp ใช้ไม่ได้
+    img.src=item.webp;
+    img.alt=item.alt||'';
+
+    // ปุ่มลูกศรและจุด แสดงเฉพาะเมื่อมีมากกว่า 1 รูป
+    var many=POPUP_IMAGES.length>1;
+    document.getElementById('popupPrevBtn').style.display=many?'flex':'none';
+    document.getElementById('popupNextBtn').style.display=many?'flex':'none';
+    var dots='';
+    for(var k=0;k<POPUP_IMAGES.length;k++){
+        dots+='<span class="popup-dot'+(k===popupIndex?' on':'')+'" onclick="popupGo('+k+')" style="cursor:pointer"></span>';
+    }
+    document.getElementById('popupDots').innerHTML=many?dots:'';
+}
+
+function popupGo(i){popupIndex=i;showPopupImage();}
+function popupNext(){popupIndex=(popupIndex+1)%POPUP_IMAGES.length;showPopupImage();}
+function popupPrev(){popupIndex=(popupIndex-1+POPUP_IMAGES.length)%POPUP_IMAGES.length;showPopupImage();}
+
+function preloadPopupImages(){
+    for(var i=0;i<POPUP_IMAGES.length;i++){var im=new Image();im.src=POPUP_IMAGES[i].webp;}
+}
+
+// ปัดซ้ายขวาบนมือถือ
+(function(){
+    var x0=null;
+    document.addEventListener('touchstart',function(e){
+        if(document.getElementById('imgPopup').classList.contains('hidden'))return;
+        x0=e.changedTouches[0].clientX;
+    },{passive:true});
+    document.addEventListener('touchend',function(e){
+        if(x0===null)return;
+        if(document.getElementById('imgPopup').classList.contains('hidden')){x0=null;return;}
+        var dx=e.changedTouches[0].clientX-x0; x0=null;
+        if(Math.abs(dx)<50||POPUP_IMAGES.length<2)return;
+        if(dx<0)popupNext(); else popupPrev();
+    },{passive:true});
+}());
+
+// ปุ่มลูกศรและ Esc บนคอม
+document.addEventListener('keydown',function(e){
+    if(document.getElementById('imgPopup').classList.contains('hidden'))return;
+    if(e.key==='Escape')closePopup();
+    else if(e.key==='ArrowRight')popupNext();
+    else if(e.key==='ArrowLeft')popupPrev();
+});
+
+function maybeAutoShowPopup(){
+    var seen='';
+    try{seen=localStorage.getItem('guild_popup_seen')||''}catch(e){}
+    if(seen!==POPUP_VERSION)setTimeout(function(){openPopup(0);},600);
+}
+
 // ===== TOAST =====
 function showToast(msg,type){type=type||'info';var c=document.getElementById('toast-container'),t=document.createElement('div');var cls={success:'border-emerald-500/30 bg-emerald-900/60 text-emerald-300',warning:'border-amber-500/30 bg-amber-900/60 text-amber-300',info:'border-orange-500/30 bg-orange-900/60 text-orange-300',error:'border-red-500/30 bg-red-900/60 text-red-300'};var icons={success:'✓',warning:'⚠',info:'ℹ',error:'✕'};t.className='toast-in pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl border '+(cls[type]||cls.info)+' text-sm backdrop-blur-md shadow-lg max-w-xs';t.innerHTML='<span>'+(icons[type]||'ℹ')+'</span><span>'+msg+'</span>';c.appendChild(t);setTimeout(function(){t.classList.replace('toast-in','toast-out');setTimeout(function(){t.remove();},350);},2200);}
 
 // ===== INIT =====
 function init(){
-    if(!IS_CONFIGURED){ showToast('ยังไม่ได้ตั้งค่า API_URL ในไฟล์นี้','error'); updateOnlineDot(false); return; }
+    if(!IS_CONFIGURED){ showToast('ยังไม่ได้ตั้งค่า API_URL ในไฟล์นี้','error'); updateOnlineDot(false); maybeAutoShowPopup(); return; }
     apiFetchState().then(function(){
         rebuildDropdown(); updatePlayerBadge(); updateStats(); renderGuessCards();
     });
+    maybeAutoShowPopup();
 }
 init();
 </script>
