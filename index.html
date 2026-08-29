@@ -89,6 +89,7 @@
     <div class="flex gap-2 p-1 bg-white/[.02] rounded-xl border border-white/5 w-fit mx-auto">
         <button onclick="switchTab('guess')" id="tab-guess" class="tab-active px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all">🎯 ทายอายุ</button>
         <button onclick="switchTab('results')" id="tab-results" class="tab-inactive px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all">📊 ผลลัพธ์ <span id="refreshSpinner" class="hidden inline-block w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full spinner ml-1 align-middle"></span></button>
+        <button onclick="switchTab('tickets')" id="tab-tickets" class="tab-inactive px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all">🎁 สิทธิ์รางวัล</button>
     </div>
 </section>
 
@@ -114,6 +115,19 @@
     <div id="resultsList" class="space-y-3"></div>
     <div id="resultsEmpty" class="hidden text-center py-20 border border-white/5 rounded-2xl bg-white/[.01]"><p class="text-neutral-500 text-sm mb-1">ยังไม่มีข้อมูล</p><p class="text-neutral-600 text-xs">ให้สมาชิกทายอายุกันก่อน</p></div>
     <div id="funStats" class="hidden mt-10"></div>
+</section>
+
+<section id="ticketsTab" class="max-w-3xl mx-auto px-4 sm:px-6 pb-10 hidden">
+    <div class="text-center mb-6">
+        <p class="text-neutral-500 text-sm">ทายอายุ 1 คน = ได้ 1 สิทธิ์ลุ้นรางวัล 🎟️</p>
+        <p class="text-neutral-600 text-xs mt-1">ทายเยอะ โอกาสมาก — สิทธิ์นับตามจำนวนคนที่คุณทาย ไม่ใช่จำนวนครั้งที่กด</p>
+    </div>
+    <div id="drawResult" class="hidden mb-6"></div>
+    <div id="ticketsList" class="space-y-2"></div>
+    <div id="ticketsEmpty" class="hidden text-center py-20 border border-white/5 rounded-2xl bg-white/[.01]"><p class="text-neutral-500 text-sm mb-1">ยังไม่มีใครทาย</p><p class="text-neutral-600 text-xs">เริ่มทายอายุเพื่อรับสิทธิ์แรกได้เลย</p></div>
+    <div class="mt-8 text-center">
+        <button onclick="openDrawGate()" class="px-5 py-2.5 rounded-xl border border-dashed border-white/10 text-neutral-600 hover:text-amber-400 hover:border-amber-500/30 text-xs transition-all">🔑 จับรางวัล (แอดมิน)</button>
+    </div>
 </section>
 
 <!-- Auth Modal: ใช้ทั้งตั้ง PIN / กรอก PIN / รหัสผ่านแอดมิน -->
@@ -157,7 +171,7 @@ var IS_CONFIGURED = API_URL && API_URL.indexOf('PASTE_') === -1 && API_URL.index
 var GRADIENTS=['from-orange-500 to-pink-500','from-purple-500 to-blue-500','from-emerald-500 to-teal-500','from-amber-500 to-orange-500','from-pink-500 to-rose-500','from-blue-500 to-cyan-500','from-red-500 to-orange-500','from-indigo-500 to-violet-500','from-teal-500 to-green-500','from-fuchsia-500 to-pink-500'];
 
 // ===== state จาก server เสมอ (ไม่มี local fallback อีกต่อไป เพราะต้องพึ่งการยืนยันตัวตนฝั่ง server) =====
-var STATE = { members: [], claimed: {}, guesses: {}, realAges: {}, revealed: [], you: null };
+var STATE = { members: [], claimed: {}, guesses: {}, realAges: {}, revealed: [], draws: [], you: null };
 var currentTab='guess', searchQuery='', revealModes={};
 var authMode=null, authPendingMemberId=null;
 
@@ -184,30 +198,69 @@ function updateOnlineDot(status){
     else{d.className='online-dot online-off ml-1';d.title='กำลังเชื่อมต่อ...';}
 }
 
+// จำนวนคำสั่งเขียนที่ยังรอคำตอบอยู่
+// ใช้กันไม่ให้ข้อมูลจาก server รอบเก่ามาทับการกดครั้งใหม่ที่ยังส่งไม่ถึง
+var pendingWrites = 0;
+
+function applyState(data){
+    if(!data) return;
+    STATE.members=data.members||[];
+    STATE.claimed=data.claimed||{};
+    STATE.guesses=data.guesses||{};
+    STATE.realAges=data.realAges||{};
+    STATE.revealed=data.revealed||[];
+    STATE.draws=data.draws||[];
+    STATE.you=data.you||null;
+    if(getToken() && !STATE.you) clearToken(); // token หมดอายุ/ไม่ถูกต้อง
+}
+
+// ลายเซ็นสั้นๆ ของข้อมูล ใช้เช็กว่ามีอะไรเปลี่ยนจริงไหม
+// ถ้าไม่เปลี่ยน จะไม่วาดหน้าจอใหม่ เพื่อไม่ให้ส่วนที่กางอยู่ถูกพับกลับ
+function stateSignature(){
+    var n=0;
+    for(var p in STATE.guesses) for(var m in STATE.guesses[p]) n++;
+    return n+'|'+Object.keys(STATE.realAges).length+'|'+STATE.revealed.length+'|'+STATE.members.length+'|'+STATE.draws.length;
+}
+
 function apiFetchState(){
     if(!IS_CONFIGURED) return Promise.resolve(false);
     var url = API_URL + '?token=' + encodeURIComponent(getToken());
     return fetch(url).then(function(r){return r.json()}).then(function(data){
-        STATE.members=data.members||[];
-        STATE.claimed=data.claimed||{};
-        STATE.guesses=data.guesses||{};
-        STATE.realAges=data.realAges||{};
-        STATE.revealed=data.revealed||[];
-        STATE.you=data.you||null;
-        if(getToken() && !STATE.you) clearToken(); // token หมดอายุ/ไม่ถูกต้อง
+        if(pendingWrites===0) applyState(data);
         updateOnlineDot(true);
         return true;
     }).catch(function(){updateOnlineDot(false);return false;});
+}
+
+// เรียกหลังได้คำตอบจากการเขียน — ใช้ข้อมูลที่แนบมากับคำตอบเลย ไม่ต้องยิงถามซ้ำอีกรอบ
+function absorbWriteResult(res, redrawFn){
+    if(res && res.state && pendingWrites===0){
+        var before=stateSignature();
+        applyState(res.state);
+        if(stateSignature()!==before && redrawFn) redrawFn();
+    }
+    updateStats();
+}
+
+// จัดการกรณี token ของผู้เล่นใช้ไม่ได้แล้ว
+function handleAuthLoss(){
+    clearToken(); STATE.you=null;
+    var sel=document.getElementById('playerSelect'); if(sel) sel.value='';
+    updatePlayerBadge(); renderGuessCards(); updateStats();
+    showToast('เซสชันหมดอายุ กรุณาเลือกชื่อและใส่ PIN อีกครั้ง','warning');
 }
 
 function apiPost(action,data){
     if(!IS_CONFIGURED) return Promise.resolve({ok:false,error:'not_configured'});
     var body=Object.assign({action:action},data||{});
     if(['guess','removeGuess','reveal','removeReveal','markSeen'].indexOf(action)!==-1) body.token=getToken();
-    if(action==='saveMembers') body.token=getAdminToken();
+    if(action==='saveMembers'||action==='drawWinner') body.token=getAdminToken();
     // ใช้ text/plain แทน application/json เพื่อเลี่ยงปัญหา CORS preflight กับ Apps Script Web App
+    pendingWrites++;
     return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
-        .then(function(r){return r.json()}).catch(function(){return {ok:false,error:'network'};});
+        .then(function(r){return r.json()})
+        .catch(function(){return {ok:false,error:'network'};})
+        .then(function(res){ pendingWrites--; if(pendingWrites<0)pendingWrites=0; return res; });
 }
 
 function findMember(id){for(var i=0;i<STATE.members.length;i++){if(STATE.members[i].id===id)return STATE.members[i];}return null;}
@@ -220,9 +273,10 @@ function onSelectMember(id){
     openAuthModal();
 }
 
+var adminNext='manage'; // 'manage' | 'draw' — ทำอะไรต่อหลังใส่รหัสแอดมินถูก
 function openManageGate(){
     if(getAdminToken()){ openManageModal(); return; }
-    authMode='admin'; authPendingMemberId=null;
+    authMode='admin'; adminNext='manage'; authPendingMemberId=null;
     openAuthModal();
 }
 
@@ -258,7 +312,7 @@ function submitAuth(){
     if(authMode==='admin'){
         if(!val){showAuthError('กรอกรหัสผ่าน');return;}
         apiPost('adminAuth',{password:val}).then(function(res){
-            if(res.ok && setAdminToken(res.token)){ document.getElementById('authModal').classList.add('hidden'); authMode=null; openManageModal(); }
+            if(res.ok && setAdminToken(res.token)){ document.getElementById('authModal').classList.add('hidden'); authMode=null; if(adminNext==='draw')confirmDraw(); else openManageModal(); }
             else if(res.ok) showAuthError('เซิร์ฟเวอร์ไม่ได้ส่ง token กลับมา — Apps Script อาจยังเป็นเวอร์ชันเก่า ให้ redeploy ก่อน');
             else showAuthError(res.error==='wrong_password'?'รหัสผ่านไม่ถูกต้อง':(res.error==='admin_not_set'?'ยังไม่ได้ตั้งรหัสผ่านแอดมินใน Apps Script':'เกิดข้อผิดพลาด'));
         });
@@ -271,7 +325,8 @@ function submitAuth(){
         if(res.ok && setToken(res.token)){
             document.getElementById('authModal').classList.add('hidden');
             authMode=null;
-            apiFetchState().then(function(){afterLogin();});
+            if(res.state){ applyState(res.state); afterLogin(); }
+            else apiFetchState().then(function(){afterLogin();});
         }else if(res.ok){
             showAuthError('เซิร์ฟเวอร์ไม่ได้ส่ง token กลับมา — Apps Script อาจยังเป็นเวอร์ชันเก่า ให้ redeploy ก่อน');
         }else{
@@ -311,12 +366,16 @@ function updatePlayerBadge(){
 // ===== TABS =====
 function switchTab(t){
     currentTab=t;
-    document.getElementById('tab-guess').className=(t==='guess'?'tab-active':'tab-inactive')+' px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all';
-    document.getElementById('tab-results').className=(t==='results'?'tab-active':'tab-inactive')+' px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all';
+    var cls=' px-5 py-2 rounded-lg text-xs uppercase tracking-wider font-medium border transition-all';
+    document.getElementById('tab-guess').className=(t==='guess'?'tab-active':'tab-inactive')+cls;
+    document.getElementById('tab-results').className=(t==='results'?'tab-active':'tab-inactive')+cls;
+    document.getElementById('tab-tickets').className=(t==='tickets'?'tab-active':'tab-inactive')+cls;
     document.getElementById('guessTab').classList.toggle('hidden',t!=='guess');
     document.getElementById('resultsTab').classList.toggle('hidden',t!=='results');
+    document.getElementById('ticketsTab').classList.toggle('hidden',t!=='tickets');
     if(t==='results'){document.getElementById('refreshSpinner').classList.remove('hidden');apiFetchState().then(function(){renderResults();updateStats();document.getElementById('refreshSpinner').classList.add('hidden');});}
     if(t==='guess'){renderSelfReveal();}
+    if(t==='tickets'){renderTickets();}
 }
 function handleSearch(q){searchQuery=q.trim().toLowerCase();renderGuessCards();}
 
@@ -395,18 +454,33 @@ function cancelSelfReveal(){revealModes['self']=false;renderSelfReveal();}
 function confirmSelfReveal(){
     var el=document.getElementById('reveal-self');var age=parseInt(el.value);
     if(!age||age<1||age>100){showToast('อายุต้อง 1-100','warning');return;}
+    // แสดงผลทันที แล้วค่อยยืนยันกับ server
+    var prev=STATE.realAges[STATE.you];
+    STATE.realAges[STATE.you]=age;
+    if(STATE.revealed.indexOf(STATE.you)===-1)STATE.revealed.push(STATE.you);
+    revealModes['self']=false;renderSelfReveal();updateStats();
+    showToast('เปิดเผยอายุ: '+age+' ปี','success');
+
     apiPost('reveal',{age:age}).then(function(res){
-        if(res.ok){
-            apiFetchState().then(function(){
-                revealModes['self']=false;renderSelfReveal();renderGuessCards();updateStats();
-                showToast('เปิดเผยอายุ: '+age+' ปี','success');
-            });
-        }else showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง','error');
+        if(res.ok){ absorbWriteResult(res,function(){renderSelfReveal();renderGuessCards();}); return; }
+        if(prev===undefined)delete STATE.realAges[STATE.you];else STATE.realAges[STATE.you]=prev;
+        renderSelfReveal();updateStats();
+        if(res.error==='unauthorized')handleAuthLoss();
+        else showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง','error');
     });
 }
 function removeRealAge(){
+    var prev=STATE.realAges[STATE.you];
+    delete STATE.realAges[STATE.you];
+    var idx=STATE.revealed.indexOf(STATE.you); if(idx!==-1)STATE.revealed.splice(idx,1);
+    renderSelfReveal();updateStats();
+
     apiPost('removeReveal',{}).then(function(res){
-        if(res.ok) apiFetchState().then(function(){updateStats();renderSelfReveal();renderGuessCards();if(currentTab==='results')renderResults();});
+        if(res.ok){ absorbWriteResult(res,function(){renderSelfReveal();renderGuessCards();}); return; }
+        if(prev!==undefined){STATE.realAges[STATE.you]=prev;STATE.revealed.push(STATE.you);}
+        renderSelfReveal();updateStats();
+        if(res.error==='unauthorized')handleAuthLoss();
+        else showToast('ลบไม่สำเร็จ ลองใหม่','error');
     });
 }
 
@@ -456,19 +530,54 @@ function adjustAge(id,d){var el=document.getElementById('input-'+id);if(el)el.va
 function submitGuess(id){
     if(!STATE.you)return;var el=document.getElementById('input-'+id);var age=parseInt(el.value);
     if(!age||age<1||age>100){showToast('อายุต้อง 1-100','warning');return;}
+
+    // อัปเดตหน้าจอทันทีโดยไม่รอ server แล้วค่อยส่งข้อมูลเบื้องหลัง
+    var had=STATE.guesses[STATE.you]&&STATE.guesses[STATE.you][id]!==undefined;
+    var prev=had?STATE.guesses[STATE.you][id]:undefined;
+    if(!STATE.guesses[STATE.you])STATE.guesses[STATE.you]={};
+    STATE.guesses[STATE.you][id]=age;
+    updateStats();renderGuessCards();
+    var m=findMember(id);showToast('ทาย '+(m?m.nickname:id)+' ไว้ '+age+' ปี','info');
+
     apiPost('guess',{member:id,age:age}).then(function(res){
-        if(res.ok){apiFetchState().then(function(){updateStats();renderGuessCards();var m=findMember(id);showToast('ทาย '+(m?m.nickname:id)+' ไว้ '+age+' ปี','info');});}
-        else showToast('บันทึกไม่สำเร็จ ลองใหม่','error');
+        if(res.ok){ absorbWriteResult(res,renderGuessCards); return; }
+        // ล้มเหลว → ย้อนกลับเป็นค่าเดิม แล้วบอกผู้ใช้
+        if(had)STATE.guesses[STATE.you][id]=prev;
+        else{delete STATE.guesses[STATE.you][id];if(!Object.keys(STATE.guesses[STATE.you]).length)delete STATE.guesses[STATE.you];}
+        updateStats();renderGuessCards();
+        if(res.error==='unauthorized')handleAuthLoss();
+        else showToast('บันทึกไม่สำเร็จ ลองกดใหม่อีกครั้ง','error');
     });
 }
 function removeGuess(id){
+    if(!STATE.you)return;
+    var had=STATE.guesses[STATE.you]&&STATE.guesses[STATE.you][id]!==undefined;
+    var prev=had?STATE.guesses[STATE.you][id]:undefined;
+    if(had){
+        delete STATE.guesses[STATE.you][id];
+        if(!Object.keys(STATE.guesses[STATE.you]).length)delete STATE.guesses[STATE.you];
+    }
+    updateStats();renderGuessCards();
+
     apiPost('removeGuess',{member:id}).then(function(res){
-        if(res.ok)apiFetchState().then(function(){updateStats();renderGuessCards();});
+        if(res.ok){ absorbWriteResult(res,renderGuessCards); return; }
+        if(had){ if(!STATE.guesses[STATE.you])STATE.guesses[STATE.you]={}; STATE.guesses[STATE.you][id]=prev; }
+        updateStats();renderGuessCards();
+        if(res.error==='unauthorized')handleAuthLoss();
+        else showToast('ลบไม่สำเร็จ ลองใหม่','error');
     });
 }
 function revealRealAgeToMe(id){
+    // ต้องรอ server เพราะตัวเลขอายุจริงถูกกันไว้ฝั่ง server ไม่ได้อยู่ในเครื่องอยู่แล้ว
     apiPost('markSeen',{member:id}).then(function(res){
-        if(res.ok)apiFetchState().then(function(){renderGuessCards();updateStats();if(currentTab==='results')renderResults();});
+        if(res.ok){
+            if(res.state&&pendingWrites===0)applyState(res.state);
+            renderGuessCards();updateStats();
+            if(currentTab==='results')renderResults();
+            return;
+        }
+        if(res.error==='unauthorized')handleAuthLoss();
+        else showToast('เปิดดูไม่สำเร็จ ลองใหม่','error');
     });
 }
 
@@ -550,6 +659,105 @@ function renderFunStats(data){
     if(diverge)h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">💥</div><div class="text-white font-display font-semibold text-sm">'+diverge.member.nickname+'</div><div class="text-xs text-red-400 mt-1">±'+diverge.sd.toFixed(1)+'</div><div class="text-neutral-600 text-[10px]">เสียงแตกมากที่สุด</div></div>';
     h+='<div class="bg-white/[.02] border border-white/5 rounded-xl p-4 text-center"><div class="text-2xl mb-1">🏆</div><div class="text-white font-display font-semibold text-sm">'+popular.member.nickname+'</div><div class="text-xs text-orange-400 mt-1">'+popular.count+' คน</div><div class="text-neutral-600 text-[10px]">ถูกทายมากที่สุด</div></div></div>';
     el.innerHTML=h;
+}
+
+// ===== TICKETS / จับรางวัล =====
+// นับสิทธิ์ฝั่งหน้าเว็บจากข้อมูลที่ดึงมาแล้ว ไม่ต้องเรียก server เพิ่ม จึงไม่มีความหน่วง
+// ส่วนการ "จับจริง" ทำที่ server เท่านั้น เพื่อให้ทุกคนเห็นผลเดียวกันและตรวจสอบย้อนหลังได้
+function computeTickets(){
+    var counts={};
+    for(var p in STATE.guesses){
+        var n=0;
+        for(var m in STATE.guesses[p])n++;
+        if(n>0)counts[p]=n;
+    }
+    var list=[],total=0;
+    for(var id in counts){
+        var mem=findMember(id);
+        list.push({id:id,nickname:mem?mem.nickname:id,displayName:mem?mem.displayName:id,tickets:counts[id]});
+        total+=counts[id];
+    }
+    list.sort(function(a,b){return b.tickets-a.tickets;});
+    return {list:list,total:total};
+}
+
+function renderTickets(){
+    var listEl=document.getElementById('ticketsList'),emptyEl=document.getElementById('ticketsEmpty');
+    renderDrawResult();
+    var t=computeTickets();
+    if(!t.list.length){listEl.innerHTML='';emptyEl.classList.remove('hidden');return;}
+    emptyEl.classList.add('hidden');
+
+    var maxT=t.list[0].tickets;
+    var h='<div class="flex items-center justify-between text-[11px] text-neutral-600 px-1 mb-2"><span>'+t.list.length+' คนเข้าร่วม</span><span>รวม '+t.total+' สิทธิ์</span></div>';
+    for(var i=0;i<t.list.length;i++){
+        var r=t.list[i];
+        var pct=(r.tickets/t.total*100).toFixed(1);
+        var barW=(r.tickets/maxT*100).toFixed(1);
+        var isMe=(r.id===STATE.you);
+        var grad=GRADIENTS[i%GRADIENTS.length];
+        var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+        h+='<div class="relative overflow-hidden '+(isMe?'bg-emerald-500/[.05] border-emerald-500/20':'bg-white/[.02] border-white/[.06]')+' border rounded-xl p-3 anim-in" style="animation-delay:'+Math.min(i*0.03,0.4)+'s">';
+        h+='<div class="absolute inset-y-0 left-0 bg-amber-500/[.06]" style="width:'+barW+'%"></div>';
+        h+='<div class="relative flex items-center gap-3">';
+        h+='<span class="w-6 text-center text-xs text-neutral-600 flex-shrink-0">'+(medal||(i+1))+'</span>';
+        h+='<div class="w-8 h-8 rounded-lg bg-gradient-to-br '+grad+' flex items-center justify-center text-white font-display font-bold text-xs flex-shrink-0">'+(r.nickname.charAt(0)||'?')+'</div>';
+        h+='<div class="min-w-0 flex-1"><div class="font-display font-semibold text-white text-sm truncate">'+r.nickname+(isMe?' <span class="text-emerald-400 text-[10px]">(คุณ)</span>':'')+'</div><div class="text-neutral-600 text-[10px] truncate">'+r.displayName+'</div></div>';
+        h+='<div class="text-right flex-shrink-0"><div class="font-display font-bold text-lg text-amber-400">'+r.tickets+'</div><div class="text-[9px] text-neutral-600">โอกาส '+pct+'%</div></div>';
+        h+='</div></div>';
+    }
+    listEl.innerHTML=h;
+}
+
+function renderDrawResult(){
+    var el=document.getElementById('drawResult');
+    if(!STATE.draws||!STATE.draws.length){el.classList.add('hidden');el.innerHTML='';return;}
+    var latest=STATE.draws[0];
+    var when='';
+    try{when=new Date(latest.drawnAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});}catch(e){when=latest.drawnAt;}
+    var h='<div class="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/20 rounded-2xl p-5 text-center anim-in">';
+    h+='<div class="text-3xl mb-2">🎉</div>';
+    h+='<div class="text-[10px] uppercase tracking-widest text-amber-400/60 mb-1">ผู้โชคดี</div>';
+    h+='<div class="font-display font-bold text-xl text-white mb-2">'+latest.winners+'</div>';
+    h+='<div class="text-[11px] text-neutral-500">จับจาก '+latest.totalPlayers+' คน / '+latest.totalTickets+' สิทธิ์ · '+when+'</div>';
+    if(STATE.draws.length>1){
+        h+='<details class="mt-3"><summary class="text-[10px] uppercase tracking-wider text-neutral-700 cursor-pointer hover:text-neutral-400">ดูการจับครั้งก่อน ('+(STATE.draws.length-1)+')</summary><div class="mt-2 space-y-1 text-left">';
+        for(var i=1;i<STATE.draws.length;i++){
+            var d=STATE.draws[i],w2='';
+            try{w2=new Date(d.drawnAt).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});}catch(e){w2=d.drawnAt;}
+            h+='<div class="flex items-center justify-between text-[11px] py-1 px-2 rounded bg-white/[.02]"><span class="text-neutral-400">'+d.winners+'</span><span class="text-neutral-700">'+w2+'</span></div>';
+        }
+        h+='</div></details>';
+    }
+    h+='</div>';
+    el.innerHTML=h;el.classList.remove('hidden');
+}
+
+function openDrawGate(){
+    if(getAdminToken()){confirmDraw();return;}
+    authMode='admin'; adminNext='draw'; authPendingMemberId=null;
+    openAuthModal();
+}
+
+function confirmDraw(){
+    var t=computeTickets();
+    if(!t.list.length){showToast('ยังไม่มีใครทาย จับรางวัลไม่ได้','warning');return;}
+    var n=prompt('จับกี่คน? (1-10)\n\nขณะนี้มี '+t.list.length+' คนเข้าร่วม รวม '+t.total+' สิทธิ์','1');
+    if(n===null)return;
+    var num=parseInt(n);
+    if(!num||num<1||num>10){showToast('ใส่ตัวเลข 1-10','warning');return;}
+    showToast('กำลังจับรางวัล...','info');
+    apiPost('drawWinner',{numWinners:num}).then(function(res){
+        if(res.ok){
+            apiFetchState().then(function(){renderTickets();showToast('จับรางวัลเสร็จ! 🎉','success');});
+        }else if(res.error==='unauthorized'){
+            clearAdminToken();
+            showToast('เซสชันแอดมินหมดอายุ กรุณาใส่รหัสอีกครั้ง','warning');
+            openDrawGate();
+        }else if(res.error==='no_entries'){
+            showToast('ยังไม่มีใครทาย จับรางวัลไม่ได้','warning');
+        }else showToast('จับรางวัลไม่สำเร็จ: '+(res.error||'unknown'),'error');
+    });
 }
 
 // ===== MANAGE (admin เท่านั้น) =====
