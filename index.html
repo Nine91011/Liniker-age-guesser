@@ -151,7 +151,7 @@
    ดูวิธี deploy ในคอมเมนต์ต้นไฟล์ Code.gs
 ===========================================================================
 */
-var API_URL = 'https://script.google.com/macros/s/AKfycbyoptCBmIFY_nffyJi1cr10-ttVZdpK5WMW7qnD72VQfEgSo13SjzOwcUEMW58TiXY_/exec';
+var API_URL = 'PASTE_YOUR_URL_HERE';
 var IS_CONFIGURED = API_URL && API_URL.indexOf('PASTE_') === -1 && API_URL.indexOf('http') === 0;
 
 var GRADIENTS=['from-orange-500 to-pink-500','from-purple-500 to-blue-500','from-emerald-500 to-teal-500','from-amber-500 to-orange-500','from-pink-500 to-rose-500','from-blue-500 to-cyan-500','from-red-500 to-orange-500','from-indigo-500 to-violet-500','from-teal-500 to-green-500','from-fuchsia-500 to-pink-500'];
@@ -316,6 +316,7 @@ function switchTab(t){
     document.getElementById('guessTab').classList.toggle('hidden',t!=='guess');
     document.getElementById('resultsTab').classList.toggle('hidden',t!=='results');
     if(t==='results'){document.getElementById('refreshSpinner').classList.remove('hidden');apiFetchState().then(function(){renderResults();updateStats();document.getElementById('refreshSpinner').classList.add('hidden');});}
+    if(t==='guess'){renderSelfReveal();}
 }
 function handleSearch(q){searchQuery=q.trim().toLowerCase();renderGuessCards();}
 
@@ -332,7 +333,62 @@ function renderSelfReveal(){
     if(ra!==null)h+='<div class="flex items-center justify-between"><span class="text-sm text-emerald-400">🎂 อายุจริง: <strong class="font-display text-lg">'+ra+'</strong> ปี</span><button onclick="removeRealAge()" class="text-neutral-600 hover:text-red-400 transition-colors text-xs">ซ่อน</button></div>';
     else if(isR)h+='<div class="flex items-center gap-2"><input id="reveal-self" type="number" min="1" max="100" placeholder="อายุจริงของคุณ" class="flex-1 h-9 text-center bg-white/5 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm focus:outline-none focus:border-emerald-500/50 placeholder-emerald-500/30" onkeydown="if(event.key===\'Enter\')confirmSelfReveal()"><button onclick="confirmSelfReveal()" class="px-4 h-9 bg-emerald-500 hover:bg-emerald-400 text-black font-medium text-xs rounded-lg transition-all">ยืนยัน</button><button onclick="cancelSelfReveal()" class="w-9 h-9 flex items-center justify-center text-neutral-600 hover:text-neutral-400 transition-colors">✕</button></div>';
     else h+='<button onclick="startSelfReveal()" class="w-full py-2.5 rounded-xl border border-dashed border-emerald-500/20 text-emerald-400/60 hover:text-emerald-400 hover:border-emerald-500/40 text-xs transition-all">🔒 เปิดเผยอายุจริงของคุณ</button>';
+    h+=buildGuessesAboutMe(ra);
     h+='</div>';el.innerHTML=h;el.classList.remove('hidden');
+}
+
+// แสดงว่าคนอื่นทายอายุของ "คุณ" ไว้เท่าไหร่บ้าง
+function buildGuessesAboutMe(myRealAge){
+    if(!STATE.you)return'';
+    var list=[];
+    for(var p in STATE.guesses){
+        if(p===STATE.you)continue; // ไม่นับตัวเอง (ปกติทายตัวเองไม่ได้อยู่แล้ว)
+        var g=STATE.guesses[p][STATE.you];
+        if(g===undefined)continue;
+        var pm=findMember(p);
+        list.push({n:pm?pm.nickname:p,g:g});
+    }
+    if(!list.length){
+        return '<div class="mt-3 pt-3 border-t border-emerald-500/10 text-center text-[11px] text-neutral-600">ยังไม่มีใครทายอายุคุณเลย</div>';
+    }
+
+    var sum=0,mn=list[0].g,mx=list[0].g;
+    for(var i=0;i<list.length;i++){var v=list[i].g;sum+=v;if(v<mn)mn=v;if(v>mx)mx=v;}
+    var avg=sum/list.length;
+    var avgS=(avg%1===0)?avg:avg.toFixed(1);
+
+    // เรียงจากน้อยไปมาก เพื่อให้ดูง่าย
+    list.sort(function(a,b){return a.g-b.g});
+
+    var h='<div class="mt-3 pt-3 border-t border-emerald-500/10">';
+    h+='<div class="flex items-center justify-between flex-wrap gap-2 mb-2">';
+    h+='<span class="text-[11px] text-neutral-500">👀 คนอื่นคิดว่าคุณอายุ</span>';
+    h+='<span class="text-[11px] text-neutral-600">'+list.length+' คนทาย</span>';
+    h+='</div>';
+    h+='<div class="flex items-center justify-center gap-4 bg-white/[.02] border border-white/5 rounded-xl py-2.5 mb-2">';
+    h+='<div class="text-center"><div class="font-display font-bold text-2xl text-amber-400">'+avgS+'</div><div class="text-[9px] text-neutral-600 uppercase tracking-wider">เฉลี่ย</div></div>';
+    h+='<div class="w-px h-8 bg-white/10"></div>';
+    h+='<div class="text-center"><div class="font-display font-semibold text-sm text-neutral-300">'+mn+' – '+mx+'</div><div class="text-[9px] text-neutral-600 uppercase tracking-wider">ช่วงที่ทาย</div></div>';
+    if(myRealAge!==null&&myRealAge!==undefined){
+        var d=avg-myRealAge;
+        var txt=Math.abs(d)<0.5?'ตรงเป๊ะ':(d>0?'แก่กว่าจริง '+Math.abs(d).toFixed(1)+' ปี':'เด็กกว่าจริง '+Math.abs(d).toFixed(1)+' ปี');
+        var col=Math.abs(d)<0.5?'text-emerald-400':(d>0?'text-orange-400':'text-cyan-400');
+        h+='<div class="w-px h-8 bg-white/10"></div>';
+        h+='<div class="text-center"><div class="font-display font-semibold text-xs '+col+'">'+txt+'</div><div class="text-[9px] text-neutral-600 uppercase tracking-wider">เทียบอายุจริง</div></div>';
+    }
+    h+='</div>';
+
+    h+='<details><summary class="text-[10px] uppercase tracking-wider text-neutral-700 cursor-pointer hover:text-neutral-400 transition-colors">📋 ดูว่าใครทายเท่าไหร่</summary><div class="mt-2 flex flex-wrap gap-1.5">';
+    for(var i=0;i<list.length;i++){
+        var ds='';
+        if(myRealAge!==null&&myRealAge!==undefined){
+            var dv=list[i].g-myRealAge;
+            ds='<span class="text-neutral-600 text-[10px]">('+(dv>0?'+':'')+dv+')</span>';
+        }
+        h+='<span class="text-[11px] bg-white/[.03] border border-white/5 rounded-lg px-2.5 py-1 flex items-center gap-1.5"><span class="text-neutral-500">'+list[i].n+'</span><span class="text-neutral-300 font-mono font-medium">'+list[i].g+'</span>'+ds+'</span>';
+    }
+    h+='</div></details></div>';
+    return h;
 }
 function startSelfReveal(){revealModes['self']=true;renderSelfReveal();setTimeout(function(){var e=document.getElementById('reveal-self');if(e)e.focus();},50);}
 function cancelSelfReveal(){revealModes['self']=false;renderSelfReveal();}
