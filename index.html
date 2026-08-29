@@ -70,7 +70,7 @@
         <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-black font-bold text-xs font-display">G</div>
             <span class="font-display font-semibold text-white text-sm tracking-tight hidden sm:inline">Age Guesser</span>
-            <span id="onlineDot" class="online-dot online-off ml-1" title="กำลังเชื่อมต่อ..."></span>
+            <span id="onlineDot" onclick="showConnectionInfo()" class="online-dot online-off ml-1" style="cursor:pointer" title="กดเพื่อดูสถานะการเชื่อมต่อ"></span>
         </div>
         <div class="flex items-center gap-1">
             <button onclick="openPopup(0)" class="text-[11px] uppercase tracking-widest text-neutral-500 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 flex items-center gap-1">📢 <span class="hidden sm:inline">กติกา</span></button>
@@ -279,14 +279,57 @@ function stateSignature(){
     return n+'|'+Object.keys(STATE.realAges).length+'|'+STATE.revealed.length+'|'+STATE.members.length+'|'+STATE.draws.length;
 }
 
+// เก็บสาเหตุล่าสุดที่เชื่อมต่อไม่สำเร็จ เพื่อบอกผู้ใช้ได้ตรงจุด
+var lastError='';
+
+function diagnose(err){
+    var proto=location.protocol;
+    if(proto==='file:'){
+        return 'คุณเปิดไฟล์จากในเครื่องโดยตรง (file://) ซึ่งเบราว์เซอร์จะบล็อกการเชื่อมต่อ — ต้องเปิดผ่าน URL ของ GitHub Pages เท่านั้น';
+    }
+    var msg=(err&&err.message)?err.message:String(err);
+    if(/Failed to fetch|NetworkError|Load failed/i.test(msg)){
+        return 'เรียก Apps Script ไม่สำเร็จ — อาจถูกบล็อกโดย CORS, ส่วนขยายเบราว์เซอร์ (ตัวบล็อกโฆษณา) หรือเน็ตมีปัญหา';
+    }
+    if(/JSON|Unexpected token/i.test(msg)){
+        return 'Apps Script ตอบกลับมาไม่ใช่ JSON — สิทธิ์ deployment อาจไม่ได้ตั้งเป็น Anyone';
+    }
+    return msg;
+}
+
 function apiFetchState(){
     if(!IS_CONFIGURED) return Promise.resolve(false);
     var url = API_URL + '?token=' + encodeURIComponent(getToken());
-    return fetch(url).then(function(r){return r.json()}).then(function(data){
+    return fetch(url).then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status+' '+r.statusText);
+        return r.json();
+    }).then(function(data){
         if(pendingWrites===0) applyState(data);
         updateOnlineDot(true);
+        lastError='';
         return true;
-    }).catch(function(){updateOnlineDot(false);return false;});
+    }).catch(function(err){
+        lastError=diagnose(err);
+        console.error('[Age Guesser] เชื่อมต่อไม่สำเร็จ:', err);
+        console.error('[Age Guesser] สาเหตุที่วิเคราะห์ได้:', lastError);
+        console.error('[Age Guesser] URL ที่เรียก:', url);
+        console.error('[Age Guesser] หน้านี้เปิดจาก:', location.href);
+        updateOnlineDot(false);
+        showToast('เชื่อมต่อไม่ได้ — กดจุดสีเทามุมซ้ายบนเพื่อดูสาเหตุ','error');
+        return false;
+    });
+}
+
+// กดที่จุดสถานะเพื่อดูรายละเอียดปัญหา
+function showConnectionInfo(){
+    if(!lastError){
+        showToast('เชื่อมต่อปกติดี','success');
+        return;
+    }
+    alert('เชื่อมต่อ Apps Script ไม่สำเร็จ\n\n' +
+          'สาเหตุ:\n' + lastError + '\n\n' +
+          'หน้านี้เปิดจาก:\n' + location.href + '\n\n' +
+          'URL ที่เรียก:\n' + API_URL);
 }
 
 // เรียกหลังได้คำตอบจากการเขียน — ใช้ข้อมูลที่แนบมากับคำตอบเลย ไม่ต้องยิงถามซ้ำอีกรอบ
